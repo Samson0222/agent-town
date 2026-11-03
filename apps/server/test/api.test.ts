@@ -214,3 +214,18 @@ describe("skills library API", () => {
     expect((await api("/api/agents/ceo")).body.agent.skills.some((r: any) => r.skillId === s.id)).toBe(false);
   });
 });
+
+describe("step-list workflows API", () => {
+  it("new workflows start in step-list mode and the server regenerates the graph on save", async () => {
+    const wf = (await api("/api/workflows", { method: "POST", json: { teamId: "launch-team", name: "Steps" } })).body;
+    expect(wf.simple.steps).toHaveLength(1);
+    expect(wf.nodes.some((n: any) => n.id === "s-step1")).toBe(true);
+    wf.simple.steps.push({ id: "check", title: "Check", who: "reviewer", what: "Check it", needsApproval: true });
+    const saved = (await api(`/api/workflows/${wf.id}`, { method: "PUT", json: wf })).body;
+    expect(saved.workflow.nodes.some((n: any) => n.type === "humanApproval")).toBe(true);
+    expect(saved.issues.filter((i: any) => i.level === "error")).toEqual([]);
+    // graph mode is still available
+    const g = (await api("/api/workflows", { method: "POST", json: { teamId: "launch-team", name: "Graph", mode: "graph" } })).body;
+    expect(g.simple).toBeUndefined();
+  });
+});

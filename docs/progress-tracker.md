@@ -4,11 +4,11 @@ Update this file whenever the current phase, active feature, or implementation s
 
 ## Current Phase
 
-- **Autonomous session (user asleep), working items 1→5:** 1 pixel office ✅ · 2 shared agent list ✅ · 3 skills library ✅ · 4 step-list workflows · 5 OpenCode 2.2.0 adapter (mocks only).
+- **Autonomous session (user asleep), working items 1→5:** 1 pixel office ✅ · 2 shared agent list ✅ · 3 skills library ✅ · 4 step-list workflows ✅ · 5 OpenCode 2.2.0 adapter (mocks only).
 
 ## Current Goal
 
-- Item 4: step-list workflow mode as the default for new workflows (who / what + review loop, needs my approval, parallel with previous) generating the graph; graph builder stays as advanced.
+- Item 5: OpenCode 2.2.0 runtime adapter on `@opencode/client@2.2.0`, tested with mocks only (no real runs, no spend).
 
 ## Completed
 
@@ -49,6 +49,12 @@ Update this file whenever the current phase, active feature, or implementation s
   - skill page: edit SKILL.md and extra files, scope, who has it
   - agent pages show global and own skills
   - at run time, active skills go into the prompt next to the instructions (or natively for runtimes with the `skills` capability), logged as `skills.loaded`
+
+- **Item 4 — Step-list workflows (2026-11-03):**
+  - new workflows open as a **step list** (Who / What, name, optional "save result as", plus toggles: review loop with reviewer, needs my approval, run in parallel with previous)
+  - graph preview tab, JSON tab, "Edit as graph (advanced)"
+  - the server regenerates the graph from the steps on every save and import
+  - tested end to end in the browser: review loop sent work back once → approval → parallel pair → done
 
 ## In Progress
 

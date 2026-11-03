@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { SimpleWorkflow, buildGraphFromSteps } from "./simple";
 
 /**
  * Workflow JSON — schema v1. The single source of truth for a workflow.
@@ -146,6 +147,11 @@ export const Workflow = z.object({
    * edge is an entry. Needed when a loop points back at the first node.
    */
   entryNodeIds: z.array(z.string()).optional(),
+  /**
+   * Step-list mode. When present, `nodes` / `edges` are generated from these steps
+   * on every save (see buildGraphFromSteps). Editing the graph directly removes it.
+   */
+  simple: SimpleWorkflow.optional(),
   settings: z
     .object({
       /** Overrides the team's run cost cap if set. */
@@ -227,4 +233,12 @@ export function migrateWorkflow(json: unknown): unknown {
     throw new Error(`Unsupported workflow schemaVersion ${String(v)} (this build reads v${WORKFLOW_SCHEMA_VERSION})`);
   }
   return json;
+}
+
+/** For step-list workflows: regenerate the graph from the steps (no-op for graph workflows). */
+export function syncSimpleWorkflow(wf: Workflow): Workflow {
+  if (!wf.simple) return wf;
+  const goalKey = wf.inputs.find((i) => i.key === "goal")?.key ?? wf.inputs[0]?.key;
+  const { nodes, edges } = buildGraphFromSteps(wf.simple.steps, { goalKey });
+  return Workflow.parse({ ...wf, nodes, edges, entryNodeIds: undefined });
 }

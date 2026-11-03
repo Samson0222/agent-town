@@ -61,6 +61,16 @@ User asks: simpler agent and workflow creation like Multica; agents designed lik
 - **lucide-react has no GitHub logo** (brand icons were removed), so a neutral git-branch icon is used.
 - **Starter skills** were written for Agent Town: Fact-check checklist, Brand voice guide (global), Landing page style guide, Short handoffs (global).
 
+### Decisions made while the user was away (item 4)
+- **One source of truth:** the step list is stored in the workflow JSON as `simple.steps`, and the graph (`nodes` / `edges`) is **generated from it on every save and import** (`syncSimpleWorkflow`, server-side). The engine still runs only the graph, and exports carry both.
+- **What each toggle generates** (deterministic ids `s-<step>`, `s-<step>-review`, `s-<step>-ok`, `s-<step>-approval`, `p-<n>`, `m-<n>`):
+  - **review loop:** reviewer step (asked for VERDICT) → Decision: approve continues, otherwise back to the step
+  - **needs my approval:** Your approval: approved continues, rejected goes back to the step with your note
+  - **parallel with previous:** consecutive parallel steps share a Run-in-parallel → … → Combine-results stage
+- **Every step prompt** is prefixed with `Goal: {{input.goal}}`. Earlier results are added automatically by the engine.
+- **"Edit as graph (advanced)"** keeps the graph generated from the current (possibly unsaved) steps and drops the step list, after a confirm. There is no automatic graph → steps conversion (most graphs can't be expressed as a list).
+- **New workflows default to step-list mode** (one step for the team's first member). `mode: "graph"` on the API still creates a graph workflow. Starter templates stay as graphs (they use tool calls).
+
 ### Fixes
 - Run page: the technical log's long lines pushed the Steps panel under the sidebar. Columns now use `minmax(0,…)`, long tokens wrap, and Activity / Steps stack below 2xl width.
 - The hydration error appeared again, after adding the Skills link to the sidebar: stale dev-server state, gone after a clean restart. **Rule:** restart the dev server after sidebar edits before browser checks.

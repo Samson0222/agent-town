@@ -3,6 +3,7 @@ export * from "./schema/team";
 export * from "./schema/skill";
 export * from "./schema/library";
 export * from "./schema/workflow";
+export * from "./schema/simple";
 export * from "./events";
 export * from "./adapters/contract";
 export * from "./connectors/contract";

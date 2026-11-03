@@ -9,6 +9,7 @@ import {
   validateWorkflowGraph,
   importAgentFactoryTemplate,
   remapWorkflowAgents,
+  syncSimpleWorkflow,
   AgentTemplate,
   Skill,
   starterSkills,
@@ -366,14 +367,18 @@ export function createApp(opts: AppOptions) {
     return { workflow: wf, issues: validateWorkflowGraph(wf) };
   });
   route("POST", "/api/workflows", (_q, _r, _p, body) => {
-    const b = (body ?? {}) as { name?: string; teamId?: string };
+    const b = (body ?? {}) as { name?: string; teamId?: string; mode?: "steps" | "graph" };
     if (!b.teamId) fail(400, "teamId is required");
-    mustTeam(b.teamId!);
-    return store.saveWorkflow(blankWorkflow(newId(b.name || "workflow"), b.teamId!, b.name || "Untitled workflow"));
+    const team = mustTeam(b.teamId!);
+    const blank = blankWorkflow(newId(b.name || "workflow"), b.teamId!, b.name || "Untitled workflow");
+    if (b.mode === "graph") return store.saveWorkflow(blank);
+    // Default: step-list mode with one step for the first member.
+    const first = team.agents[0]?.id ?? "";
+    return store.saveWorkflow(syncSimpleWorkflow({ ...blank, simple: { steps: [{ id: "step1", title: "First step", who: first, what: "", needsApproval: false, parallelWithPrevious: false }] } }));
   });
   route("PUT", "/api/workflows/:id", (_q, _r, p, body) => {
     const existing = mustWorkflow(p.id!);
-    const wf = parseWorkflow({ ...(body as object), id: p.id, revision: existing.revision });
+    const wf = syncSimpleWorkflow(parseWorkflow({ ...(body as object), id: p.id, revision: existing.revision }));
     mustTeam(wf.teamId);
     const saved = store.saveWorkflow(wf);
     return { workflow: saved, issues: validateWorkflowGraph(saved) };
@@ -393,7 +398,7 @@ export function createApp(opts: AppOptions) {
   });
   /** Import: body is workflow JSON. A new id is assigned if it clashes. teamId must exist (or pass ?teamId=). */
   route("POST", "/api/workflows/import", (req, _r, _p, body) => {
-    const wf = parseWorkflow(body);
+    const wf = syncSimpleWorkflow(parseWorkflow(body));
     const teamOverride = new URL(req.url!, "http://x").searchParams.get("teamId");
     const teamId = teamOverride || wf.teamId;
     if (!store.getTeam(teamId)) fail(400, `Team "${teamId}" does not exist — import or create it first, or choose a team`);

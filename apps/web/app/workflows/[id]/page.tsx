@@ -4,6 +4,7 @@ import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { parseWorkflow, type EdgeCondition, type Team, type Workflow, type WorkflowNode, type WorkflowIssue } from "@agent-town/core";
 import { FlowGraph, NODE_META } from "@/components/FlowGraph";
+import { StepListMode } from "@/components/StepList";
 import { api, download, errorText, type PreflightResult, type ToolInfo } from "@/lib/api";
 
 type Sel = { kind: "node" | "edge"; id: string } | null;
@@ -133,6 +134,19 @@ export default function WorkflowBuilder() {
       </div>
       {msg && <p className={`text-sm ${msg.ok ? "text-green-600" : "text-red-600"}`}>{msg.text}</p>}
 
+      {wf.simple && tab !== "json" ? (
+        <StepListMode
+          wf={wf}
+          team={team}
+          update={update}
+          issues={preflight ? preflight.issues : issues}
+          onJson={() => {
+            setJsonText(JSON.stringify(wf, null, 2));
+            setTab("json");
+          }}
+          onAdvanced={() => setTab("graph")}
+        />
+      ) : (
       <div className="grid gap-3 lg:grid-cols-[180px_1fr_340px]">
         <aside className="panel space-y-1 p-3">
           <div className="muted mb-1 text-xs">Add node</div>
@@ -149,7 +163,7 @@ export default function WorkflowBuilder() {
         <div>
           <div className="mb-2 flex gap-1">
             <button className={`btn btn-sm ${tab === "graph" ? "btn-primary" : ""}`} onClick={() => setTab("graph")}>
-              Graph
+              {wf.simple ? "Back to steps" : "Graph"}
             </button>
             <button
               className={`btn btn-sm ${tab === "json" ? "btn-primary" : ""}`}
@@ -216,6 +230,7 @@ export default function WorkflowBuilder() {
           )}
         </aside>
       </div>
+      )}
     </div>
   );
 }
