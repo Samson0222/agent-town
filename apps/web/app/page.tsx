@@ -167,7 +167,7 @@ export default function StartPage() {
               <div className="mb-4 flex flex-wrap gap-2">
                 {team?.agents.map((a) => (
                   <span key={a.id} className="flex items-center gap-1.5 rounded-full py-0.5 pl-0.5 pr-2.5 text-xs" style={{ background: "var(--bg-soft)" }}>
-                    <Avatar name={a.name} color={a.appearance.color} size={22} />
+                    <Avatar name={a.name} color={a.appearance.color} sprite={a.appearance.sprite} size={22} />
                     {a.name} <span className="muted">· {a.role}</span>
                   </span>
                 ))}

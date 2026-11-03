@@ -6,6 +6,23 @@ import { parseWorkflow, type Workflow, type WorkflowInputJson } from "../schema/
  * edit or delete. Nothing in the engine or UI depends on these ids.
  */
 
+const DESCRIPTIONS: Record<string, string> = {
+  researcher: "Finds competitors, prices and local facts, with numbers.",
+  writer: "Turns research into positioning, taglines and short copy.",
+  developer: "Builds simple, accessible web pages from the copy.",
+  reviewer: "Checks facts and tone; sends work back when something is off.",
+  ceo: "Pulls everything together into a decision-ready brief.",
+  pm: "Writes user stories with clear acceptance criteria.",
+  dev: "Implements features in small, tested changes.",
+  qa: "Reviews work against the acceptance criteria.",
+  "analyst-a": "Researches market size and the main players.",
+  "analyst-b": "Researches what users need and what frustrates them.",
+  "research-editor": "Synthesizes research into a one-page brief.",
+  author: "Writes clear, friendly blog posts.",
+  "copy-editor": "Edits posts for clarity and approves them.",
+};
+let lookCounter = 0;
+
 const agent = (
   id: string,
   name: string,
@@ -15,7 +32,17 @@ const agent = (
   desk: { x: number; y: number },
   systemPrompt: string,
   tools: string[] = [],
-) => ({ id, name, role, department, systemPrompt, tools, appearance: { color, sprite: "default", desk } });
+) => ({
+  id,
+  name,
+  role,
+  department,
+  description: DESCRIPTIONS[id] ?? "",
+  systemPrompt,
+  tools,
+  // A fixed office character per starter agent, so the roster avatar and the office match.
+  appearance: { color, sprite: `char-${lookCounter++ % 6}`, desk },
+});
 
 // ---------------------------------------------------------------------------
 // Launch Brief (the v0.3 demo)
@@ -123,7 +150,7 @@ const researchTeam: TeamInput = {
   agents: [
     agent("analyst-a", "Ash", "Researcher (market)", "Research", "#2a9d8f", { x: 1, y: 1 }, "You research market size and players.", ["mock-web.search"]),
     agent("analyst-b", "Blair", "Researcher (users)", "Research", "#43aa8b", { x: 3, y: 1 }, "You research user needs and pain points.", ["mock-web.search"]),
-    agent("editor", "Eden", "Editor / Lead", "Editorial", "#e9c46a", { x: 2, y: 3 }, "You synthesize research into a one-page brief."),
+    agent("research-editor", "Eden", "Editor / Lead", "Editorial", "#e9c46a", { x: 2, y: 3 }, "You synthesize research into a one-page brief."),
   ],
 };
 
@@ -138,8 +165,8 @@ const researchWorkflow: WorkflowInputJson = {
     { id: "split", type: "parallel", label: "Split research", position: { x: 260, y: 0 } },
     { id: "market", type: "agentTask", label: "Market scan", position: { x: 80, y: 140 }, config: { agentId: "analyst-a", prompt: "Market scan: {{input.topic}}" } },
     { id: "users", type: "agentTask", label: "User needs", position: { x: 440, y: 140 }, config: { agentId: "analyst-b", prompt: "User needs: {{input.topic}}" } },
-    { id: "brief", type: "merge", label: "One-page brief", position: { x: 260, y: 280 }, config: { agentId: "editor", prompt: "Write a one-page brief on {{input.topic}}.", outputFile: "research-brief.md" } },
-    { id: "approve", type: "humanApproval", label: "Approve brief", position: { x: 260, y: 420 }, config: { message: "Approve the research brief?", agentId: "editor" } },
+    { id: "brief", type: "merge", label: "One-page brief", position: { x: 260, y: 280 }, config: { agentId: "research-editor", prompt: "Write a one-page brief on {{input.topic}}.", outputFile: "research-brief.md" } },
+    { id: "approve", type: "humanApproval", label: "Approve brief", position: { x: 260, y: 420 }, config: { message: "Approve the research brief?", agentId: "research-editor" } },
     { id: "end", type: "end", label: "Done", position: { x: 260, y: 560 } },
   ],
   edges: [
@@ -163,7 +190,7 @@ const contentTeam: TeamInput = {
   defaults: { runtime: "mock", model: { id: "mock/standard" }, costCapUsd: 0.5 },
   agents: [
     agent("author", "Alex", "Writer", "Content", "#e76f51", { x: 1, y: 1 }, "You write clear, friendly blog posts."),
-    agent("editor", "Morgan", "Editor (Reviewer)", "Content", "#9b5de5", { x: 3, y: 1 }, "You edit for clarity. Start with VERDICT: APPROVE or VERDICT: REJECT."),
+    agent("copy-editor", "Morgan", "Editor (Reviewer)", "Content", "#9b5de5", { x: 3, y: 1 }, "You edit for clarity. Start with VERDICT: APPROVE or VERDICT: REJECT."),
   ],
 };
 
@@ -177,7 +204,7 @@ const contentWorkflow: WorkflowInputJson = {
   inputs: [{ key: "topic", label: "Topic", required: true, default: "5 tips for brewing better coffee at home" }],
   nodes: [
     { id: "draft", type: "agentTask", label: "Draft post", position: { x: 200, y: 0 }, config: { agentId: "author", prompt: "Write a 300-word blog post: {{input.topic}}", outputFile: "post.md" } },
-    { id: "edit", type: "agentTask", label: "Edit", position: { x: 200, y: 130 }, config: { agentId: "editor", prompt: "Edit this post. VERDICT first.\n\n{{nodes.draft.output}}" } },
+    { id: "edit", type: "agentTask", label: "Edit", position: { x: 200, y: 130 }, config: { agentId: "copy-editor", prompt: "Edit this post. VERDICT first.\n\n{{nodes.draft.output}}" } },
     { id: "ok", type: "branch", label: "Ready?", position: { x: 200, y: 260 } },
     { id: "end", type: "end", label: "Done", position: { x: 200, y: 390 } },
   ],

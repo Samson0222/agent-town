@@ -24,7 +24,7 @@ export default function RunPage() {
   const names = useMemo(() => Object.fromEntries(agents.map((a) => [a.id, a.name])), [agents]);
   const colors = useMemo(() => Object.fromEntries(agents.map((a) => [a.id, a.color])), [agents]);
   const people = useMemo(
-    () => agents.map((a) => ({ id: a.id, name: a.name, color: a.color, status: a.status, tool: a.currentTool, message: a.message })),
+    () => agents.map((a) => ({ id: a.id, name: a.name, color: a.color, status: a.status, tool: a.currentTool, message: a.message, sprite: a.sprite })),
     [agents],
   );
   const labels = useMemo(() => Object.fromEntries((detail?.run.workflow.nodes ?? []).map((n) => [n.id, n.label || n.id])), [detail]);

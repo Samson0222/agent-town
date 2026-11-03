@@ -33,6 +33,19 @@ User asks: simpler agent and workflow creation like Multica; agents designed lik
 - **Turbopack and `.js` imports.** Turbopack can't resolve `./x.js` to `x.ts`, and it has no extension-alias option (checked in Next 16's bundled docs). So the `.js` suffix is stripped from relative imports in vendored files by one documented sed command, the only change to upstream code.
 - **The hydration error seen once** was stale dev-server state after editing the sidebar. A clean restart showed no errors.
 
+### Decisions made while the user was away (item 2)
+- **Team = membership.** `Team.memberIds` points into the agent library. The store resolves `agents` (and the skills they use) when reading a team, so the engine, preflight and runs didn't change, and run snapshots stay self-contained.
+- **Migration** (runs at server start, and whenever a team arrives with embedded agents and no members):
+  - same id and same content → one shared agent
+  - same id but different content → renamed `<id>-<team>`, and that team's workflows are updated
+  - tested on a real database from before this change: 14 agents, 2 clashes (`editor`, `pm`) resolved, the research workflow remapped
+- **Starter agents** got globally unique ids (`research-editor`, `copy-editor`), a one-line description, and a fixed office character, so roster avatars and office characters match.
+- **"Use template"** creates fresh agent copies (`<id>-<suffix>`), so editing a copy never changes the original.
+- **Deleting an agent** is refused while a workflow step uses it (the step would break). Removing it from a team keeps it in the library.
+- **Avatar = office character.** The New agent flow offers the 6 pixel-agents characters plus a colour, and the office uses the same character (no hue shift), so they always match. Agents without a chosen character keep initials avatars.
+- **Runtime step** lists the registered runtimes. OpenCode / Claude Code show as "appear here once switched on" (no real runs in the prototype).
+- **Multica license** (Apache-2.0 + hosting/embedding conditions): we followed its *layout and flow* (3 steps, Identity / Behavior & capabilities sections, Now / Recent work + side card). No Multica code was used.
+
 ### Fixes
 - A React warning on graph nodes (mixing `border` / `borderColor` with `borderLeft*`): every side is now set individually. The browser check now clicks graph nodes.
 - OpenCode check: installs inside `.m0/`, never hangs on the event stream, masks org ids.

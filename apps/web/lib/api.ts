@@ -28,6 +28,7 @@ export interface RuntimeInfo {
   kind: string;
   capabilities: string[];
   spendsCredit: boolean;
+  description?: string;
   models: Array<{ id: string; name?: string }>;
 }
 

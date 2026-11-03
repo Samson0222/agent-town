@@ -86,7 +86,7 @@ export default function OfficePage() {
 
 function IdleOffice({ team }: { team: Team }) {
   const [selected, setSelected] = useState<string | null>(null);
-  const people: OfficePerson[] = useMemo(() => team.agents.map((a) => ({ id: a.id, name: a.name, color: a.appearance.color, status: "idle" })), [team]);
+  const people: OfficePerson[] = useMemo(() => team.agents.map((a) => ({ id: a.id, name: a.name, color: a.appearance.color, status: "idle", sprite: a.appearance.sprite })), [team]);
   const agent = team.agents.find((a) => a.id === selected);
   return (
     <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
@@ -103,7 +103,7 @@ function IdleOffice({ team }: { team: Team }) {
           {team.agents.map((a) => (
             <li key={a.id}>
               <button onClick={() => setSelected(a.id)} className="flex w-full items-center gap-3 rounded-xl p-2 text-left hover:bg-[var(--panel-2)]" style={{ background: selected === a.id ? "var(--accent-soft)" : undefined }}>
-                <Avatar name={a.name} color={a.appearance.color} size={34} />
+                <Avatar name={a.name} color={a.appearance.color} sprite={a.appearance.sprite} size={34} />
                 <div className="min-w-0 flex-1">
                   <div className="text-sm font-semibold">{a.name}</div>
                   <div className="muted truncate text-xs">{a.role}</div>
@@ -133,13 +133,14 @@ function LiveOffice({ team, run }: { team: Team; run: RunRow }) {
   const agents = useMemo(() => state.agentOrder.map((a) => state.agents[a]!).filter(Boolean) as AgentState[], [state]);
   const people: OfficePerson[] = useMemo(
     () =>
-      (agents.length ? agents : team.agents.map((a) => ({ id: a.id, name: a.name, color: a.appearance.color, status: "idle" as const }))).map((a) => ({
+      (agents.length ? agents : team.agents.map((a) => ({ id: a.id, name: a.name, color: a.appearance.color, status: "idle" as const, sprite: a.appearance.sprite }))).map((a) => ({
         id: a.id,
         name: a.name,
         color: a.color,
         status: a.status,
         tool: "currentTool" in a ? a.currentTool : undefined,
         message: "message" in a ? a.message : undefined,
+        sprite: a.sprite,
       })),
     [agents, team],
   );
@@ -163,7 +164,7 @@ function LiveOffice({ team, run }: { team: Team; run: RunRow }) {
           {people.map((p) => (
             <li key={p.id}>
               <button onClick={() => setSelected(p.id)} className="flex w-full items-center gap-3 rounded-xl p-2 text-left hover:bg-[var(--panel-2)]" style={{ background: selected === p.id ? "var(--accent-soft)" : undefined }}>
-                <Avatar name={p.name} color={p.color} size={34} ring={p.status === "waiting-for-human" ? "var(--warn)" : undefined} />
+                <Avatar name={p.name} color={p.color} sprite={p.sprite} size={34} ring={p.status === "waiting-for-human" ? "var(--warn)" : undefined} />
                 <div className="min-w-0 flex-1">
                   <div className="text-sm font-semibold">{p.name}</div>
                   <div className="muted truncate text-xs">{p.tool ? `🔧 ${p.tool}` : p.message ?? "—"}</div>

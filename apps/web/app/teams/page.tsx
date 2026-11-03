@@ -101,7 +101,7 @@ export default function TeamsPage() {
             <div className="mb-4 flex flex-wrap gap-1.5">
               {t.agents.map((a) => (
                 <span key={a.id} className="flex items-center gap-1.5 rounded-full py-0.5 pl-0.5 pr-2.5 text-xs" style={{ background: "var(--bg-soft)" }} title={a.role}>
-                  <Avatar name={a.name} color={a.appearance.color} size={22} /> {a.name}
+                  <Avatar name={a.name} color={a.appearance.color} sprite={a.appearance.sprite} size={22} /> {a.name}
                 </span>
               ))}
               {t.agents.length === 0 && <span className="muted text-xs">No agents yet</span>}

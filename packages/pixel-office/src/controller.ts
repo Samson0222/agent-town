@@ -30,6 +30,8 @@ export interface OfficeAgent {
   status: OfficeAgentStatus;
   /** Tool in use (drives typing vs reading animation). */
   tool?: string;
+  /** Which office character to use (0-based); otherwise picked from the id. */
+  look?: number;
 }
 
 export interface LabelPosition {
@@ -187,7 +189,8 @@ export class PixelOffice {
         // Prefer a free seat at a work desk (not the lounge sofa).
         const seat = workSeatIds(st.getLayout()).find((sid) => !st.seats.get(sid)?.assigned);
         // skipSpawnEffect: agents are simply "in the office", not materialising.
-        st.addAgent(nid, h % Math.max(1, this.characterCount), (h >> 3) % 360, seat, true);
+        const palette = a.look !== undefined ? a.look % Math.max(1, this.characterCount) : h % Math.max(1, this.characterCount);
+        st.addAgent(nid, palette, a.look !== undefined ? 0 : (h >> 3) % 360, seat, true);
       }
       const key = `${a.status}|${a.tool ?? ""}`;
       if (this.last.get(a.id) === key) continue;

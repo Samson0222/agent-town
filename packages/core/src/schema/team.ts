@@ -109,8 +109,11 @@ export function resolveAgent(team: Team, agent: AgentTemplate): {
   };
 }
 
-/** Enabled skills of an agent, resolved against the team's skill list. */
+/**
+ * Active skills of an agent: global skills (unless the agent switched them off)
+ * plus agent-scoped skills the agent has ticked and enabled.
+ */
 export function agentSkills(team: Team, agent: AgentTemplate): Skill[] {
-  const byId = new Map(team.skills.map((s) => [s.id, s]));
-  return agent.skills.filter((r) => r.enabled).map((r) => byId.get(r.skillId)).filter((s): s is Skill => !!s);
+  const refs = new Map(agent.skills.map((r) => [r.skillId, r.enabled]));
+  return team.skills.filter((s) => (s.scope === "global" ? refs.get(s.id) !== false : refs.get(s.id) === true));
 }

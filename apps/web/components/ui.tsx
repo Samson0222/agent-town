@@ -42,7 +42,46 @@ export function AgentStatusChip({ status }: { status: AgentStatus }) {
   );
 }
 
-export function Avatar({ name, color, size = 36, ring }: { name: string; color: string; size?: number; ring?: string }) {
+/** Office character index from an agent's sprite setting ("char-3" → 3), if it picks one. */
+export function characterIndex(sprite?: string): number | undefined {
+  const m = /^char-(\d+)$/.exec(sprite ?? "");
+  return m ? Number(m[1]) : undefined;
+}
+
+/** The pixel-office character (front-facing, first frame), drawn from the office sprite sheet. */
+export function PixelCharacter({ index, scale = 2 }: { index: number; scale?: number }) {
+  return (
+    <span
+      aria-hidden
+      className="inline-block shrink-0"
+      style={{
+        width: 16 * scale,
+        height: 32 * scale,
+        backgroundImage: `url(/pixel-office/assets/characters/char_${index}.png)`,
+        backgroundSize: `${112 * scale}px ${96 * scale}px`,
+        backgroundPosition: "0 0",
+        imageRendering: "pixelated",
+      }}
+    />
+  );
+}
+
+export function Avatar({ name, color, size = 36, ring, sprite }: { name: string; color: string; size?: number; ring?: string; sprite?: string }) {
+  const ch = characterIndex(sprite);
+  if (ch !== undefined) {
+    return (
+      <span
+        className="inline-flex shrink-0 items-start justify-center overflow-hidden rounded-full"
+        style={{ width: size, height: size, background: `linear-gradient(135deg, ${color}, ${shade(color, -0.25)})`, boxShadow: ring ? `0 0 0 2px var(--panel), 0 0 0 4px ${ring}` : undefined }}
+        title={name}
+      >
+        {/* head and shoulders: the sprite's top half, nudged down a little */}
+        <span style={{ marginTop: size * 0.1 }}>
+          <PixelCharacter index={ch} scale={size / 22} />
+        </span>
+      </span>
+    );
+  }
   const initials = name
     .split(/\s+/)
     .map((p) => p[0])

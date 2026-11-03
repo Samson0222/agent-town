@@ -1,13 +1,14 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Building2, History, Sparkles, Users, Workflow, Armchair } from "lucide-react";
+import { Building2, History, Sparkles, Users, Workflow, Armchair, Bot, BookOpen } from "lucide-react";
 import type { ReactNode } from "react";
 
 const NAV = [
   { href: "/office", label: "Office", icon: Armchair, match: (p: string) => p.startsWith("/office") },
   { href: "/", label: "Start", icon: Sparkles, match: (p: string) => p === "/" },
   { href: "/runs", label: "Runs", icon: History, match: (p: string) => p.startsWith("/runs") },
+  { href: "/agents", label: "Agents", icon: Bot, match: (p: string) => p.startsWith("/agents") },
   { href: "/teams", label: "Teams", icon: Users, match: (p: string) => p.startsWith("/teams") },
   { href: "/workflows", label: "Workflows", icon: Workflow, match: (p: string) => p.startsWith("/workflows") },
 ];

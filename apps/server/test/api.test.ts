@@ -123,12 +123,61 @@ describe("vault layout + step runs + Agent Factory import", () => {
   it("imports Agent Factory templates into a team", async () => {
     const r = await api("/api/teams/content-team/import/agent-factory", {
       method: "POST",
-      json: { templates: [{ "template.json": JSON.stringify({ id: "editor", name: "Copy Chief", defaults: { model: "mock/fast" } }), "SOUL.md": "Be kind." }] },
+      json: { templates: [{ "template.json": JSON.stringify({ id: "copy-editor", name: "Copy Chief", defaults: { model: "mock/fast" } }), "SOUL.md": "Be kind." }] },
     });
     expect(r.status).toBe(200);
-    expect(r.body.imported[0].id).toBe("editor-2"); // "editor" already exists in this team
-    const added = r.body.team.agents.find((a: any) => a.id === "editor-2");
+    expect(r.body.imported[0].id).toBe("copy-editor-2"); // "copy-editor" already exists in the library
+    const added = r.body.team.agents.find((a: any) => a.id === "copy-editor-2");
     expect(added.model).toEqual({ id: "mock/fast" });
     expect(added.systemPrompt).toContain("Be kind.");
+  });
+});
+
+describe("shared agent library", () => {
+  it("lists library agents with their teams, and teams resolve members", async () => {
+    const agents = (await api("/api/agents")).body;
+    const riley = agents.find((a: any) => a.id === "researcher");
+    expect(riley.teams.map((t: any) => t.id)).toContain("launch-team");
+    const team = (await api("/api/teams/launch-team")).body;
+    expect(team.memberIds).toContain("researcher");
+    expect(team.agents.find((a: any) => a.id === "researcher").name).toBe("Riley");
+  });
+
+  it("creates an agent, adds it to a team, edits it everywhere at once", async () => {
+    const a = (await api("/api/agents", { method: "POST", json: { name: "Nova", role: "Analyst", teamId: "sprint-team" } })).body;
+    expect((await api("/api/teams/sprint-team")).body.memberIds).toContain(a.id);
+    await api(`/api/agents/${a.id}`, { method: "PUT", json: { ...a, systemPrompt: "Be brief." } });
+    const team = (await api("/api/teams/sprint-team")).body;
+    expect(team.agents.find((x: any) => x.id === a.id).systemPrompt).toBe("Be brief.");
+    // removing from a team keeps the agent in the library
+    await api("/api/teams/sprint-team", { method: "PUT", json: { ...team, memberIds: team.memberIds.filter((m: string) => m !== a.id) } });
+    expect((await api(`/api/agents/${a.id}`)).status).toBe(200);
+    expect((await api(`/api/agents/${a.id}`, { method: "DELETE" })).status).toBe(200);
+  });
+
+  it("refuses to delete an agent a workflow still uses", async () => {
+    const r = await api("/api/agents/researcher", { method: "DELETE" });
+    expect(r.status).toBe(409);
+  });
+
+  it("template copies get their own agents", async () => {
+    const r = (await api("/api/templates/launch-brief/instantiate", { method: "POST" })).body;
+    expect(r.team.memberIds).not.toContain("researcher");
+    const step = r.workflow.nodes.find((n: any) => n.id === "research");
+    expect(r.team.memberIds).toContain(step.config.agentId);
+  });
+
+  it("migrates a team that still embeds agents (legacy), renaming clashes", async () => {
+    const legacy = {
+      id: "legacy-team",
+      name: "Legacy",
+      agents: [
+        { id: "researcher", name: "Someone Else", role: "Researcher" }, // clashes with launch-team's Riley
+        { id: "solo-x", name: "Solo", role: "Writer" },
+      ],
+    };
+    const t = (await api("/api/teams", { method: "POST", json: legacy })).body;
+    expect(t.memberIds).toEqual(["researcher-legacy-team", "solo-x"]);
+    expect((await api("/api/agents/researcher")).body.agent.name).toBe("Riley");
   });
 });

@@ -19,6 +19,8 @@ export interface OfficePerson {
   status: AgentStatus;
   tool?: string;
   message?: string;
+  /** Agent's sprite setting, e.g. "char-2" picks office character 2. */
+  sprite?: string;
 }
 
 const PILL: Record<AgentStatus, { text: (p: OfficePerson) => string; bg: string; fg: string } | null> = {
@@ -104,5 +106,8 @@ export function Office({ people, onAgentClick, selectedId, height = 704 }: { peo
 }
 
 function toOffice(people: OfficePerson[]): OfficeAgent[] {
-  return people.map((p) => ({ id: p.id, name: p.name, status: p.status, tool: p.tool }));
+  return people.map((p) => {
+    const m = /^char-(\d+)$/.exec(p.sprite ?? "");
+    return { id: p.id, name: p.name, status: p.status, tool: p.tool, look: m ? Number(m[1]) : undefined };
+  });
 }

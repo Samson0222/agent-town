@@ -1,7 +1,18 @@
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { Team, parseWorkflow, type AgentTownEvent, type RunStatus, type Workflow } from "@agent-town/core";
+import {
+  AgentTemplate,
+  Skill,
+  Team,
+  parseWorkflow,
+  remapWorkflowAgents,
+  resolveTeam,
+  sameAgent,
+  type AgentTownEvent,
+  type RunStatus,
+  type Workflow,
+} from "@agent-town/core";
 
 /**
  * SQLite store. Events are the source of truth for runs; tasks, messages and
@@ -56,9 +67,104 @@ export class Store {
         PRIMARY KEY (run_id, node_id, attempt)
       );
     `);
+    this.db.exec(`
+      -- Shared agent library (Multica-style): teams reference agents by id.
+      CREATE TABLE IF NOT EXISTS agents (id TEXT PRIMARY KEY, json TEXT NOT NULL, updated_at TEXT NOT NULL);
+      -- Shared skills library.
+      CREATE TABLE IF NOT EXISTS skills (id TEXT PRIMARY KEY, json TEXT NOT NULL, updated_at TEXT NOT NULL);
+    `);
     // Additive migration for databases created before vault_dir existed.
     const cols = this.db.prepare("PRAGMA table_info(runs)").all().map((r) => String(r.name));
     if (!cols.includes("vault_dir")) this.db.exec("ALTER TABLE runs ADD COLUMN vault_dir TEXT");
+  }
+
+  // Agents (shared library) -------------------------------------------------
+
+  listAgents(): AgentTemplate[] {
+    return this.db.prepare("SELECT json FROM agents ORDER BY updated_at DESC").all().map((r) => AgentTemplate.parse(JSON.parse(String(r.json))));
+  }
+
+  getAgent(id: string): AgentTemplate | undefined {
+    const r = this.db.prepare("SELECT json FROM agents WHERE id = ?").get(id);
+    return r ? AgentTemplate.parse(JSON.parse(String(r.json))) : undefined;
+  }
+
+  saveAgent(agent: AgentTemplate): AgentTemplate {
+    const a = AgentTemplate.parse(agent);
+    this.db
+      .prepare("INSERT INTO agents (id, json, updated_at) VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET json = excluded.json, updated_at = excluded.updated_at")
+      .run(a.id, JSON.stringify(a), new Date().toISOString());
+    return a;
+  }
+
+  deleteAgent(id: string): boolean {
+    for (const t of this.listTeamsRaw()) {
+      if (t.memberIds.includes(id)) this.writeTeam({ ...t, memberIds: t.memberIds.filter((m) => m !== id) });
+    }
+    return Number(this.db.prepare("DELETE FROM agents WHERE id = ?").run(id).changes) > 0;
+  }
+
+  // Skills (shared library) -------------------------------------------------
+
+  listSkills(): Skill[] {
+    return this.db.prepare("SELECT json FROM skills ORDER BY updated_at DESC").all().map((r) => Skill.parse(JSON.parse(String(r.json))));
+  }
+
+  getSkill(id: string): Skill | undefined {
+    const r = this.db.prepare("SELECT json FROM skills WHERE id = ?").get(id);
+    return r ? Skill.parse(JSON.parse(String(r.json))) : undefined;
+  }
+
+  saveSkill(skill: Skill): Skill {
+    const now = new Date().toISOString();
+    const sk = Skill.parse({ ...skill, createdAt: skill.createdAt ?? now, updatedAt: now });
+    this.db
+      .prepare("INSERT INTO skills (id, json, updated_at) VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET json = excluded.json, updated_at = excluded.updated_at")
+      .run(sk.id, JSON.stringify(sk), now);
+    return sk;
+  }
+
+  deleteSkill(id: string): boolean {
+    for (const a of this.listAgents()) if (a.skills.some((r) => r.skillId === id)) this.saveAgent({ ...a, skills: a.skills.filter((r) => r.skillId !== id) });
+    return Number(this.db.prepare("DELETE FROM skills WHERE id = ?").run(id).changes) > 0;
+  }
+
+  /**
+   * Move agents embedded in a team into the shared library.
+   * Same id + same content → shared; same id + different content → renamed `<id>-<team>`
+   * and that team's workflows are updated to the new id.
+   */
+  private migrateTeamAgents(team: Team): Team {
+    if (team.memberIds.length || !team.agents.length) return team;
+    const rename = new Map<string, string>();
+    const memberIds: string[] = [];
+    for (const agent of team.agents) {
+      let id = agent.id;
+      const existing = this.getAgent(id);
+      if (existing && !sameAgent(existing, agent)) {
+        id = `${agent.id}-${team.id}`;
+        for (let i = 2; this.getAgent(id) && !sameAgent(this.getAgent(id)!, { ...agent, id }); i++) id = `${agent.id}-${team.id}-${i}`;
+        rename.set(agent.id, id);
+      }
+      this.saveAgent({ ...agent, id });
+      memberIds.push(id);
+    }
+    if (rename.size) {
+      for (const wf of this.listWorkflows().filter((w) => w.teamId === team.id)) this.saveWorkflow(remapWorkflowAgents(wf, rename));
+    }
+    return { ...team, memberIds, agents: [] };
+  }
+
+  /** One-time startup migration for databases from before the agent library existed. */
+  migrateLegacyTeams(): number {
+    let n = 0;
+    for (const t of this.listTeamsRaw()) {
+      if (!t.memberIds.length && t.agents.length) {
+        this.writeTeam(this.migrateTeamAgents(t));
+        n++;
+      }
+    }
+    return n;
   }
 
   setRunVaultDir(runId: string, dir: string): void {
@@ -70,28 +176,56 @@ export class Store {
     return r?.vault_dir ? String(r.vault_dir) : undefined;
   }
 
+  /** Step attempts by one agent across runs, newest first, with run/workflow names. */
+  agentStepRuns(agentId: string, limit = 30): Array<Record<string, unknown>> {
+    return this.db
+      .prepare(
+        `SELECT s.*, r.workflow_name, r.status AS run_status FROM step_runs s JOIN runs r ON r.id = s.run_id
+         WHERE s.agent_id = ? ORDER BY s.started_at DESC LIMIT ?`,
+      )
+      .all(agentId, limit) as Array<Record<string, unknown>>;
+  }
+
   stepRuns(runId: string): Array<Record<string, unknown>> {
     return this.db.prepare("SELECT * FROM step_runs WHERE run_id = ? ORDER BY started_at").all(runId) as Array<Record<string, unknown>>;
   }
 
   // Teams --------------------------------------------------------------------
 
-  listTeams(): Team[] {
+  /** Teams as stored (membership only). */
+  listTeamsRaw(): Team[] {
     return this.db.prepare("SELECT json FROM teams ORDER BY updated_at DESC").all().map((r) => Team.parse(JSON.parse(String(r.json))));
+  }
+
+  /** Teams with members (and the skills they use) resolved from the libraries. */
+  listTeams(): Team[] {
+    const agents = this.listAgents();
+    const skills = this.listSkills();
+    return this.listTeamsRaw().map((t) => resolveTeam(t, agents, skills));
   }
 
   getTeam(id: string): Team | undefined {
     const r = this.db.prepare("SELECT json FROM teams WHERE id = ?").get(id);
-    return r ? Team.parse(JSON.parse(String(r.json))) : undefined;
+    return r ? resolveTeam(Team.parse(JSON.parse(String(r.json))), this.listAgents(), this.listSkills()) : undefined;
   }
 
+  /**
+   * Save a team. Membership (`memberIds`) is what is stored; resolved `agents` / `skills`
+   * are dropped. A team that arrives with agents but no memberIds (older clients, imports)
+   * has its agents moved into the library first.
+   */
   saveTeam(team: Team): Team {
+    const migrated = this.migrateTeamAgents(Team.parse(team));
+    this.writeTeam(migrated);
+    return this.getTeam(migrated.id)!;
+  }
+
+  private writeTeam(team: Team): void {
     const now = new Date().toISOString();
-    const t = { ...team, createdAt: team.createdAt ?? now, updatedAt: now };
+    const t = { ...team, agents: [], skills: [], createdAt: team.createdAt ?? now, updatedAt: now };
     this.db
       .prepare("INSERT INTO teams (id, json, updated_at) VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET json = excluded.json, updated_at = excluded.updated_at")
       .run(t.id, JSON.stringify(t), now);
-    return t;
   }
 
   deleteTeam(id: string): boolean {

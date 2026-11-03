@@ -5,6 +5,8 @@ export interface OfficeAgent {
     status: OfficeAgentStatus;
     /** Tool in use (drives typing vs reading animation). */
     tool?: string;
+    /** Which office character to use (0-based); otherwise picked from the id. */
+    look?: number;
 }
 export interface LabelPosition {
     id: string;

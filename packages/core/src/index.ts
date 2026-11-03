@@ -1,6 +1,7 @@
 // Browser-safe core: data model, schema, events, contracts, reducer, templates.
 export * from "./schema/team";
 export * from "./schema/skill";
+export * from "./schema/library";
 export * from "./schema/workflow";
 export * from "./events";
 export * from "./adapters/contract";

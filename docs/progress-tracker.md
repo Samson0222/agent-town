@@ -4,11 +4,11 @@ Update this file whenever the current phase, active feature, or implementation s
 
 ## Current Phase
 
-- **Autonomous session (user asleep), working items 1→5:** 1 pixel office ✅ · 2 shared agent list · 3 skills library · 4 step-list workflows · 5 OpenCode 2.2.0 adapter (mocks only).
+- **Autonomous session (user asleep), working items 1→5:** 1 pixel office ✅ · 2 shared agent list ✅ · 3 skills library · 4 step-list workflows · 5 OpenCode 2.2.0 adapter (mocks only).
 
 ## Current Goal
 
-- Item 2: shared agent list (Multica-style New agent flow + agent detail page), with teams picking agents and automatic migration.
+- Item 3: skills library (write / import folder / starters / GitHub install with preview + pinned commit), global vs agent scope, skills in prompts.
 
 ## Completed
 
@@ -36,6 +36,12 @@ Update this file whenever the current phase, active feature, or implementation s
   - `/office` page, live-linked to an active run
   - auto-added desk pods when a team outgrows the work seats (tested with 10 agents)
   - old town renderer removed
+
+- **Item 2 — Shared agent list (2026-11-03):**
+  - `/agents` list; Multica-style **New agent** in 3 steps (runtime → identity: look, colour, name, role, description → instructions, skills, model, plus advanced tools / approvals / cost cap → done page with next steps)
+  - `/agents/[id]` with Overview (Now / Recent work from `step_runs`, instructions) and a side card (runtime, model, cost, skills global + own, teams, workflows), plus Settings (same form)
+  - teams pick members from the library (`memberIds`); automatic migration of embedded agents, with clashes renamed and workflows remapped. Tested on a real old database.
+  - avatars = the agent's pixel-office character
 
 ## In Progress
 

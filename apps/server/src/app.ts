@@ -8,6 +8,8 @@ import {
   blankWorkflow,
   validateWorkflowGraph,
   importAgentFactoryTemplate,
+  remapWorkflowAgents,
+  AgentTemplate,
   type AgentFactoryFiles,
   type AgentTownEvent,
   type Workflow,
@@ -113,6 +115,9 @@ export function createApp(opts: AppOptions) {
     store.appendEvent({ seq: o.lastSeq + 1, runId: o.id, ts: new Date().toISOString(), type: "run.stopped", reason: "Server restarted while the run was active" });
   }
 
+  // Databases from before the shared agent library: move embedded agents into it.
+  store.migrateLegacyTeams();
+
   if (opts.seedTemplates !== false && store.listTeams().length === 0) {
     for (const t of starterTemplates()) {
       store.saveTeam(t.team);
@@ -149,10 +154,73 @@ export function createApp(opts: AppOptions) {
   route("POST", "/api/templates/:id/instantiate", (_q, _r, p) => {
     const t = starterTemplates().find((x) => x.id === p.id) ?? fail(404, "No such template");
     const teamId = newId(t.team.name);
-    const team = store.saveTeam({ ...t.team, id: teamId, name: `${t.team.name} (copy)`, vault: teamId });
-    const wf = store.saveWorkflow({ ...t.workflow, id: newId(t.workflow.name), name: `${t.workflow.name} (copy)`, teamId: team.id, revision: 1 });
+    const suffix = teamId.split("-").pop()!;
+    const rename = new Map<string, string>();
+    for (const a of t.team.agents) {
+      const id = `${a.id}-${suffix}`;
+      rename.set(a.id, id);
+      store.saveAgent({ ...a, id });
+    }
+    const team = store.saveTeam(Team.parse({ ...t.team, id: teamId, name: `${t.team.name} (copy)`, vault: teamId, agents: [], memberIds: [...rename.values()] }));
+    const wf = store.saveWorkflow(
+      remapWorkflowAgents({ ...t.workflow, id: newId(t.workflow.name), name: `${t.workflow.name} (copy)`, teamId: team.id, revision: 1 }, rename),
+    );
     return { team, workflow: wf };
   });
+
+  // --- agents (shared library) ---------------------------------------------
+  const mustAgent = (id: string) => store.getAgent(id) ?? fail(404, `Agent ${id} not found`);
+  const agentUsage = (id: string) => ({
+    teams: store.listTeamsRaw().filter((t) => t.memberIds.includes(id)).map((t) => ({ id: t.id, name: t.name })),
+    workflows: store
+      .listWorkflows()
+      .filter((w) => w.nodes.some((n) => (n.config as { agentId?: string }).agentId === id))
+      .map((w) => ({ id: w.id, name: w.name })),
+  });
+  route("GET", "/api/agents", () => {
+    const teams = store.listTeamsRaw();
+    return store.listAgents().map((a) => ({ ...a, teams: teams.filter((t) => t.memberIds.includes(a.id)).map((t) => ({ id: t.id, name: t.name })) }));
+  });
+  route("GET", "/api/agents/:id", (_q, _r, p) => ({ agent: mustAgent(p.id!), ...agentUsage(p.id!) }));
+  route("POST", "/api/agents", (_q, _r, _p, body) => {
+    const b = (body ?? {}) as { name?: string; teamId?: string } & Record<string, unknown>;
+    const name = (b.name ?? "").trim() || "New agent";
+    let id = String(b.id ?? "") || newId(name);
+    if (store.getAgent(id)) id = newId(name);
+    const agent = store.saveAgent(AgentTemplate.parse({ role: name, ...b, id, name }));
+    if (b.teamId) {
+      const team = mustTeam(b.teamId);
+      store.saveTeam(Team.parse({ ...team, memberIds: [...team.memberIds, agent.id] }));
+    }
+    return agent;
+  });
+  route("PUT", "/api/agents/:id", (_q, _r, p, body) => {
+    mustAgent(p.id!);
+    return store.saveAgent(AgentTemplate.parse({ ...(body as object), id: p.id }));
+  });
+  route("POST", "/api/agents/:id/clone", (_q, _r, p) => {
+    const src = mustAgent(p.id!);
+    return store.saveAgent({ ...src, id: newId(src.name), name: `${src.name} (copy)` });
+  });
+  route("DELETE", "/api/agents/:id", (_q, _r, p) => {
+    mustAgent(p.id!);
+    const usage = agentUsage(p.id!);
+    if (usage.workflows.length) fail(409, `Used by ${usage.workflows.length} workflow(s) — reassign those steps first`, usage);
+    store.deleteAgent(p.id!);
+    return { deleted: p.id };
+  });
+  /** "Now" and "Recent work" for an agent's page, from the step_runs table. */
+  route("GET", "/api/agents/:id/activity", (_q, _r, p) => {
+    mustAgent(p.id!);
+    const rows = store.agentStepRuns(p.id!, 30);
+    return {
+      now: rows.filter((r) => r.status === "running"),
+      recent: rows.filter((r) => r.status !== "running"),
+    };
+  });
+
+  // --- skills (shared library; full management in item 3) --------------------
+  route("GET", "/api/skills", () => store.listSkills());
 
   // --- teams -----------------------------------------------------------------
   route("GET", "/api/teams", () => store.listTeams());
@@ -166,8 +234,9 @@ export function createApp(opts: AppOptions) {
   route("PUT", "/api/teams/:id", (_q, _r, p, body) => {
     mustTeam(p.id!);
     const team = Team.parse({ ...(body as object), id: p.id });
-    const ids = team.agents.map((a) => a.id);
-    if (new Set(ids).size !== ids.length) fail(400, "Agent ids must be unique within a team");
+    const ids = team.memberIds.length ? team.memberIds : team.agents.map((a) => a.id);
+    if (new Set(ids).size !== ids.length) fail(400, "An agent can only be in a team once");
+    for (const id of team.memberIds) if (!store.getAgent(id)) fail(400, `Unknown agent "${id}"`);
     return store.saveTeam(team);
   });
   route("POST", "/api/teams/:id/clone", (_q, _r, p) => {
@@ -184,15 +253,16 @@ export function createApp(opts: AppOptions) {
     for (const m of adapters.manifests()) for (const x of await adapters.require(m.id).listModels().catch(() => [])) models.add(x.id);
     const palette = ["#2a9d8f", "#e76f51", "#4f86f7", "#9b5de5", "#e9c46a", "#43aa8b", "#f15bb5", "#577590"];
     const imported: Array<{ id: string; name: string; notes: string[] }> = [];
-    const agents = [...team.agents];
+    const memberIds = [...team.memberIds];
     for (const files of templates) {
-      const { agent, notes } = importAgentFactoryTemplate(files, { knownModel: (id) => models.has(id), color: palette[agents.length % palette.length] });
+      const { agent, notes } = importAgentFactoryTemplate(files, { knownModel: (id) => models.has(id), color: palette[memberIds.length % palette.length] });
       let id = agent.id;
-      for (let i = 2; agents.some((a) => a.id === id); i++) id = `${agent.id}-${i}`;
-      agents.push({ ...agent, id });
+      for (let i = 2; store.getAgent(id); i++) id = `${agent.id}-${i}`;
+      store.saveAgent({ ...agent, id });
+      memberIds.push(id);
       imported.push({ id, name: agent.name, notes });
     }
-    return { team: store.saveTeam(Team.parse({ ...team, agents })), imported };
+    return { team: store.saveTeam(Team.parse({ ...team, memberIds })), imported };
   });
   route("DELETE", "/api/teams/:id", (req, _r, p) => {
     mustTeam(p.id!);

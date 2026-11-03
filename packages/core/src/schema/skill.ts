@@ -28,7 +28,16 @@ export const Skill = z.object({
   /** The SKILL.md body: steps, checks, expected output. */
   content: z.string().default(""),
   files: z.array(SkillFile).default([]),
-  source: z.enum(["manual", "folder", "starter"]).default("manual"),
+  /**
+   * global = applies to every agent (an agent can switch it off for itself);
+   * agents = applies only to agents that have it ticked.
+   */
+  scope: z.enum(["global", "agents"]).default("agents"),
+  source: z.enum(["manual", "folder", "starter", "github"]).default("manual"),
+  /** For GitHub installs: where it came from, pinned to an exact commit. */
+  origin: z
+    .object({ repo: z.string(), path: z.string(), ref: z.string(), commit: z.string(), url: z.string() })
+    .optional(),
   createdAt: z.string().optional(),
   updatedAt: z.string().optional(),
 });

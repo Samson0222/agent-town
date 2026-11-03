@@ -284,7 +284,7 @@ export function TeamRoster({ agents, state, labels, onSelect, selected }: { agen
               className="flex w-full items-center gap-3 rounded-xl p-2 text-left transition hover:bg-[var(--panel-2)]"
               style={{ background: selected === a.id ? "var(--accent-soft)" : undefined }}
             >
-              <Avatar name={a.name} color={a.color} size={34} ring={a.status === "waiting-for-human" ? "var(--warn)" : undefined} />
+              <Avatar name={a.name} color={a.color} sprite={a.sprite} size={34} ring={a.status === "waiting-for-human" ? "var(--warn)" : undefined} />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <span className="truncate text-sm font-semibold">{a.name}</span>
@@ -586,7 +586,7 @@ export function AgentDrawer({ agent, state, events, names, labels, onClose }: { 
       <div className="drawer-backdrop" onClick={onClose} />
       <aside className="drawer">
         <div className="flex items-center gap-3 border-b p-5" style={{ borderColor: "var(--line)" }}>
-          <Avatar name={agent.name} color={agent.color} size={48} />
+          <Avatar name={agent.name} color={agent.color} sprite={agent.sprite} size={48} />
           <div className="min-w-0 flex-1">
             <div className="text-lg font-bold">{agent.name}</div>
             <div className="muted text-sm">
