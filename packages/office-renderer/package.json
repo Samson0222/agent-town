@@ -1,0 +1,10 @@
+{
+  "name": "@agent-town/office-renderer",
+  "version": "0.4.0-upstream.78e8e91",
+  "private": true,
+  "type": "module",
+  "description": "Vendored copy of rafapetter/agent-town (MIT) pixel-office renderer at upstream commit 78e8e91, plus one documented patch. See UPSTREAM.md.",
+  "license": "MIT",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": { "typecheck": "tsc -p tsconfig.json" }
+}
