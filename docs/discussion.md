@@ -2,6 +2,34 @@
 
 Newest first. Record decisions and open points from each session.
 
+## 2026-11-03 — Office switched to pixel-agents; Multica-style agents & skills; step-list workflows
+
+User asks: simpler agent and workflow creation like Multica; agents designed like pixel-agents; agents always visible in the office (never disappear).
+
+### Decisions (user choices)
+1. **Office = pixel-agents engine + art** (MIT), vendored in `packages/pixel-office`. It replaces the agent-town town renderer, which has been removed.
+2. **Behaviour (pixel-agents' rules):**
+   - every agent owns a desk and is always in the office
+   - working: sits and types or reads
+   - waiting for you: stays seated with a "…" bubble
+   - done: ✓, then strolls and rests at the desk
+   - idle: strolls
+
+   **This updates the earlier `ambient:false` decision:** strolling is allowed *only while an agent is not working*, so the office never fakes work.
+3. **New Office page** (`/office`): the team is always on screen. It shows a live run if one is active, otherwise everyone idles.
+4. **Shared agent list** (Multica style): agents live in one library and teams pick from it. *(in progress)*
+5. **Skills** (Multica style), recommended to and accepted by the user:
+   - write a skill in the app
+   - import a skill folder
+   - a few starter skills
+
+   A skill is reusable know-how (`SKILL.md` plus files), attached to agents and switchable per agent. *(in progress)*
+6. **Step-list workflow mode** as the default way to make workflows; the graph stays as "advanced". *(in progress)*
+
+### Fixes
+- A React warning on graph nodes (mixing `border` / `borderColor` with `borderLeft*`): every side is now set individually. The browser check now clicks graph nodes.
+- OpenCode check: installs inside `.m0/`, never hangs on the event stream, masks org ids.
+
 ## 2026-11-03 — UI redesign + alignment done
 
 - **Office:** the npm `agent-town@0.2.0` package contains no JavaScript, so the upstream source is vendored at commit 78e8e91 (MIT) in `packages/office-renderer`. Local changes are only the two patches in `patches/` (ambient switch, overflow crash fix), documented in UPSTREAM.md.

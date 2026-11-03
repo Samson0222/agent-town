@@ -1,3 +1,0 @@
-export { AgentTown } from './AgentTown';
-export type { AgentConfig, AgentUpdate, AgentStatus, AgentActivity, WorkPhase, ParticleEventType, TownConfig, TownEventMap, CharacterPalette, ThemeId, OfficeSize, EnvironmentId, ZoneType, ActivityZone, Room, Workstation, ActivityEvent, Task, TaskStage, ReviewItem, Priority, Objective, ObjectiveStatus, Story, StoryStatus, Sprint, SprintStatus, Milestone, StageConfig, BuildingStyle, ActivityProp, RoomMode, TaskItemRenderData, CompletionBagRenderData, TaskVisualizationData, FlyingTask, TownSettings, Workspace, } from './types';
-export { DEFAULT_STAGES } from './types';

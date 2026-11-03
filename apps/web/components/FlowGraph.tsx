@@ -61,7 +61,9 @@ function AtNode({ data, selected }: NodeProps<Node<AtNodeData>>) {
         // Longhand only: mixing `border` with `borderLeft` makes React warn on re-render.
         borderStyle: "solid",
         borderWidth: "1.5px 1.5px 1.5px 4px",
-        borderColor: selected ? "var(--accent)" : "var(--line)",
+        borderTopColor: selected ? "var(--accent)" : "var(--line)",
+        borderRightColor: selected ? "var(--accent)" : "var(--line)",
+        borderBottomColor: selected ? "var(--accent)" : "var(--line)",
         borderLeftColor: meta.color,
         boxShadow: ring !== "transparent" ? `0 0 0 3px ${ring}${active ? "" : "55"}, var(--shadow)` : "var(--shadow)",
         minWidth: 180,

@@ -15,7 +15,7 @@
     "next": "16.4.4",
     "react": "19.3.1",
     "react-dom": "19.3.1",
-    "@agent-town/office-renderer": "0.4.0-upstream.78e8e91"
+    "@agent-town/pixel-office": "1.0.0-upstream.b1bafd0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "4.3.4",

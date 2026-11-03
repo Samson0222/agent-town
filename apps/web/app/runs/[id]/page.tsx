@@ -1,12 +1,11 @@
 "use client";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
-import type { EnvironmentId } from "@agent-town/office-renderer";
+import { useMemo, useState } from "react";
 import { ArrowLeft, Building2, Columns3, History, Network, Pause, Play, Radio, Square } from "lucide-react";
 import { pendingApprovals } from "@agent-town/core";
 import { FlowGraph } from "@/components/FlowGraph";
-import { ENVIRONMENTS, OFFICE_ASPECT, Office, officeSizeFor } from "@/components/Office";
+import { Office } from "@/components/Office";
 import { ActivityFeed, AgentDrawer, ApprovalBanner, Board, CostMeter, Outputs, StepsPanel, TeamRoster } from "@/components/RunPanels";
 import { RunStatusChip } from "@/components/ui";
 import { api, errorText } from "@/lib/api";
@@ -20,23 +19,14 @@ export default function RunPage() {
   const [view, setView] = useState<View>("office");
   const [selected, setSelected] = useState<string | null>(null);
   const [ctrlErr, setCtrlErr] = useState<string | null>(null);
-  const [env, setEnv] = useState<EnvironmentId>("town");
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem("agent-town:env") as EnvironmentId | null;
-      if (saved && ENVIRONMENTS.some((e) => e.id === saved)) setEnv(saved);
-    } catch {}
-  }, []);
-  const chooseEnv = (e: EnvironmentId) => {
-    setEnv(e);
-    try {
-      localStorage.setItem("agent-town:env", e);
-    } catch {}
-  };
 
   const agents = useMemo(() => state.agentOrder.map((a) => state.agents[a]!).filter(Boolean), [state]);
   const names = useMemo(() => Object.fromEntries(agents.map((a) => [a.id, a.name])), [agents]);
   const colors = useMemo(() => Object.fromEntries(agents.map((a) => [a.id, a.color])), [agents]);
+  const people = useMemo(
+    () => agents.map((a) => ({ id: a.id, name: a.name, color: a.color, status: a.status, tool: a.currentTool, message: a.message })),
+    [agents],
+  );
   const labels = useMemo(() => Object.fromEntries((detail?.run.workflow.nodes ?? []).map((n) => [n.id, n.label || n.id])), [detail]);
 
   if (error) return <p style={{ color: "var(--bad)" }}>{error}</p>;
@@ -138,18 +128,10 @@ export default function RunPage() {
                 </span>
               )}
               <span className="muted ml-auto hidden text-xs lg:block">Click a person to see their work</span>
-              {view === "office" && (
-                <select className="input !h-8 !w-auto !py-0 text-xs" value={env} onChange={(e) => chooseEnv(e.target.value as EnvironmentId)} aria-label="Scene">
-                  {ENVIRONMENTS.map((e) => (
-                    <option key={e.id} value={e.id}>
-                      Scene: {e.label}
-                    </option>
-                  ))}
-                </select>
-              )}
+
             </div>
-            <div style={view === "office" ? { aspectRatio: `${OFFICE_ASPECT[officeSizeFor(agents.length)]}`, maxHeight: 640 } : { height: 560 }} className={view === "office" ? "" : "p-3"}>
-              {view === "office" && <Office state={state} agents={agents} environment={env} onAgentClick={setSelected} />}
+            <div style={{ height: view === "office" ? 480 : 560 }} className={view === "office" ? "" : "p-3"}>
+              {view === "office" && <Office people={people} onAgentClick={setSelected} selectedId={selected} height={480} />}
               {view === "graph" && <FlowGraph workflow={workflow} team={team} statuses={state.nodes} height="100%" bare />}
               {view === "board" && <Board state={state} names={names} colors={colors} onSelect={(a) => a && setSelected(a)} />}
             </div>

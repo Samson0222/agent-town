@@ -1,0 +1,20 @@
+{
+  "name": "@agent-town/pixel-office",
+  "version": "1.0.0-upstream.b1bafd0",
+  "private": true,
+  "type": "module",
+  "description": "Pixel office engine and art vendored from pixel-agents-hq/pixel-agents (MIT) at b1bafd0, plus Agent Town's own controller and loader. See UPSTREAM.md.",
+  "license": "MIT",
+  "exports": {
+    ".": {
+      "types": "./types/src/index.d.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "build:assets": "tsx scripts/build-assets.ts",
+    "build:types": "tsc -p tsconfig.types.json"
+  },
+  "types": "./types/src/index.d.ts"
+}
