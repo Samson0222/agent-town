@@ -161,7 +161,7 @@ export default function RunPage() {
             </div>
           </section>
 
-          <div className="grid gap-5 lg:grid-cols-[3fr_2fr]">
+          <div className="grid gap-5 2xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
             <section className="panel p-5">
               <ActivityFeed events={visibleEvents} names={names} labels={labels} colors={colors} />
             </section>

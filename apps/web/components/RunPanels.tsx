@@ -171,7 +171,7 @@ export function EventLog({ events, names, height = 360 }: { events: AgentTownEve
             <span className="shrink-0" style={{ color: "var(--accent)" }}>
               {ev.type}
             </span>
-            <span className="min-w-0 flex-1 break-words">{technicalText(ev, names)}</span>
+            <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{technicalText(ev, names)}</span>
             {(ev.runtime || ev.connector) && <span className="muted shrink-0">[{ev.connector ?? ev.runtime}]</span>}
           </li>
         ))}

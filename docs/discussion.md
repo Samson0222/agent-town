@@ -46,7 +46,24 @@ User asks: simpler agent and workflow creation like Multica; agents designed lik
 - **Runtime step** lists the registered runtimes. OpenCode / Claude Code show as "appear here once switched on" (no real runs in the prototype).
 - **Multica license** (Apache-2.0 + hosting/embedding conditions): we followed its *layout and flow* (3 steps, Identity / Behavior & capabilities sections, Now / Recent work + side card). No Multica code was used.
 
+### Decisions made while the user was away (item 3)
+- **Skill model:** `SKILL.md` body + extra text files + `scope` (`global` | `agents`) + `source` (manual / folder / starter / github) + `origin` for GitHub (`repo, path, ref, commit, url`).
+- **How scope is stored per agent:** for a global skill only an explicit **off** is stored on the agent (`enabled:false`); for an agent-scoped skill only an explicit **on**. Changing a skill's scope resets per-agent choices, because the meaning flips.
+- **In the prompt:** if the runtime has the new `skills` capability (OpenCode 2.x has `session.skill`), skills are passed natively. Otherwise they're appended after the instructions as `## Skills you can use` → `### Skill: <name>` + "Use when" + body + files. A `skills.loaded` event records which skills each step had, and the mock runtime echoes them, so it's visible in demos.
+- **GitHub install safety:**
+  - the ref is resolved to a commit SHA, and every file is fetched from `raw.githubusercontent.com/<sha>/…`, so what you previewed is exactly what's saved
+  - binaries skipped; limits of 60 files, 200 KB per file, 1 MB total
+  - nested skills excluded
+  - scripts stored as text, flagged in the preview and in the editor, and never executed
+  - `GITHUB_TOKEN` is used only if set on the server (rate limits) and never stored or logged
+  - "Update from source" re-resolves the same ref, shows old → new commit, and only applies on click
+- **Not verified against real GitHub** (this container gets 403 from api.github.com). It's covered by a fake-GitHub test suite.
+- **lucide-react has no GitHub logo** (brand icons were removed), so a neutral git-branch icon is used.
+- **Starter skills** were written for Agent Town: Fact-check checklist, Brand voice guide (global), Landing page style guide, Short handoffs (global).
+
 ### Fixes
+- Run page: the technical log's long lines pushed the Steps panel under the sidebar. Columns now use `minmax(0,…)`, long tokens wrap, and Activity / Steps stack below 2xl width.
+- The hydration error appeared again, after adding the Skills link to the sidebar: stale dev-server state, gone after a clean restart. **Rule:** restart the dev server after sidebar edits before browser checks.
 - A React warning on graph nodes (mixing `border` / `borderColor` with `borderLeft*`): every side is now set individually. The browser check now clicks graph nodes.
 - OpenCode check: installs inside `.m0/`, never hangs on the event stream, masks org ids.
 

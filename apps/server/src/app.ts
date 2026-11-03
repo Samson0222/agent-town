@@ -10,6 +10,8 @@ import {
   importAgentFactoryTemplate,
   remapWorkflowAgents,
   AgentTemplate,
+  Skill,
+  starterSkills,
   type AgentFactoryFiles,
   type AgentTownEvent,
   type Workflow,
@@ -27,6 +29,7 @@ import {
 } from "@agent-town/core/engine";
 import { Store } from "./store";
 import { DiskVault } from "./vault";
+import { applyAssignment, fetchGithubSkill, isAssigned, skillFromFiles, slugify } from "./skills";
 
 export interface AppOptions {
   dbFile: string;
@@ -219,8 +222,90 @@ export function createApp(opts: AppOptions) {
     };
   });
 
-  // --- skills (shared library; full management in item 3) --------------------
+  // --- skills (shared library) ----------------------------------------------
+  const mustSkill = (id: string) => store.getSkill(id) ?? fail(404, `Skill ${id} not found`);
+  const uniqueSkillId = (base: string) => {
+    let id = slugify(base);
+    for (let i = 2; store.getSkill(id); i++) id = `${slugify(base)}-${i}`;
+    return id;
+  };
+  /** Save a new skill and apply who gets it: `scope` + `agentIds` (agents scope) or `offFor` (global). */
+  const createSkill = (raw: unknown, scope?: "global" | "agents", agentIds: string[] = []) => {
+    const r = (raw ?? {}) as { id?: string; name?: string };
+    const parsed = Skill.parse({ ...r, id: r.id || slugify(r.name || "skill") });
+    const skill = store.saveSkill({ ...parsed, id: uniqueSkillId(parsed.id || parsed.name), scope: scope ?? parsed.scope });
+    if (skill.scope === "agents") for (const id of agentIds) {
+      const a = store.getAgent(id);
+      if (a) store.saveAgent(applyAssignment(a, skill, true));
+    }
+    return skill;
+  };
+  const skillAgents = (skill: Skill) => store.listAgents().map((a) => ({ id: a.id, name: a.name, role: a.role, color: a.appearance.color, sprite: a.appearance.sprite, on: isAssigned(a, skill) }));
+
   route("GET", "/api/skills", () => store.listSkills());
+  route("GET", "/api/skills/:id", (_q, _r, p) => {
+    const skill = mustSkill(p.id!);
+    return { skill, agents: skillAgents(skill) };
+  });
+  route("POST", "/api/skills", (_q, _r, _p, body) => {
+    const b = (body ?? {}) as { skill?: unknown; scope?: "global" | "agents"; agentIds?: string[] };
+    return createSkill({ source: "manual", ...(b.skill as object) }, b.scope, b.agentIds);
+  });
+  /** Folder import: one or more skill folders, each `{ files: { "SKILL.md": "...", "templates/x.md": "..." } }`. */
+  route("POST", "/api/skills/import", (_q, _r, _p, body) => {
+    const b = (body ?? {}) as { folders?: Array<{ name?: string; files: Record<string, string> }>; scope?: "global" | "agents"; agentIds?: string[] };
+    if (!b.folders?.length) fail(400, "No skill folders in the request");
+    const created: Skill[] = [];
+    const warnings: string[] = [];
+    for (const folder of b.folders!) {
+      const { skill, warnings: w } = skillFromFiles(folder.files, "folder", folder.name);
+      created.push(createSkill(skill, b.scope, b.agentIds));
+      warnings.push(...w.map((x) => `${skill.name}: ${x}`));
+    }
+    return { created, warnings };
+  });
+  route("GET", "/api/skill-starters", () => {
+    const installed = new Set(store.listSkills().filter((s) => s.source === "starter").map((s) => s.name));
+    return starterSkills().map((s) => ({ ...s, installed: installed.has(s.name) }));
+  });
+  route("POST", "/api/skill-starters/:id/install", (_q, _r, p, body) => {
+    const starter = starterSkills().find((s) => s.id === p.id) ?? fail(404, "No such starter skill");
+    const b = (body ?? {}) as { scope?: "global" | "agents"; agentIds?: string[] };
+    return createSkill(starter, b.scope, b.agentIds);
+  });
+  /** GitHub install, step 1: download at an exact commit and show it — nothing is saved. */
+  route("POST", "/api/skills/github/preview", async (_q, _r, _p, body) => {
+    const url = ((body ?? {}) as { url?: string }).url;
+    if (!url) fail(400, "url is required");
+    return fetchGithubSkill(url!);
+  });
+  /** GitHub install, step 2 is POST /api/skills with the previewed skill (source "github", origin pinned). */
+  route("POST", "/api/skills/:id/check-source", async (_q, _r, p) => {
+    const skill = mustSkill(p.id!);
+    if (!skill.origin) fail(400, "This skill was not installed from GitHub");
+    const o = skill.origin!;
+    const latest = await fetchGithubSkill(`https://github.com/${o.repo}/tree/${o.ref}${o.path ? `/${o.path}` : ""}`);
+    return { ...latest, changed: latest.skill.origin?.commit !== o.commit, current: o.commit };
+  });
+  route("PUT", "/api/skills/:id", (_q, _r, p, body) => {
+    const existing = mustSkill(p.id!);
+    const b = (body ?? {}) as { skill?: unknown; assign?: Record<string, boolean> };
+    const skill = store.saveSkill(Skill.parse({ ...existing, ...(b.skill as object), id: existing.id, createdAt: existing.createdAt }));
+    // Changing scope resets per-agent refs to the new meaning.
+    if (skill.scope !== existing.scope) {
+      for (const a of store.listAgents()) if (a.skills.some((r) => r.skillId === skill.id)) store.saveAgent({ ...a, skills: a.skills.filter((r) => r.skillId !== skill.id) });
+    }
+    for (const [agentId, on] of Object.entries(b.assign ?? {})) {
+      const a = store.getAgent(agentId);
+      if (a) store.saveAgent(applyAssignment(a, skill, on));
+    }
+    return { skill, agents: skillAgents(skill) };
+  });
+  route("DELETE", "/api/skills/:id", (_q, _r, p) => {
+    mustSkill(p.id!);
+    store.deleteSkill(p.id!);
+    return { deleted: p.id };
+  });
 
   // --- teams -----------------------------------------------------------------
   route("GET", "/api/teams", () => store.listTeams());

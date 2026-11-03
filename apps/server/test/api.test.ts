@@ -181,3 +181,36 @@ describe("shared agent library", () => {
     expect((await api("/api/agents/researcher")).body.agent.name).toBe("Riley");
   });
 });
+
+describe("skills library API", () => {
+  it("installs a starter skill for specific agents and shows it on their pages", async () => {
+    const s = (await api("/api/skill-starters/fact-check-checklist/install", { method: "POST", json: { scope: "agents", agentIds: ["reviewer"] } })).body;
+    const detail = (await api(`/api/skills/${s.id}`)).body;
+    expect(detail.agents.find((a: any) => a.id === "reviewer").on).toBe(true);
+    expect(detail.agents.find((a: any) => a.id === "writer").on).toBe(false);
+    const team = (await api("/api/teams/launch-team")).body;
+    expect(team.skills.map((x: any) => x.id)).toContain(s.id);
+  });
+
+  it("global skills apply to everyone and can be switched off per agent", async () => {
+    const s = (await api("/api/skills", { method: "POST", json: { skill: { name: "House style", content: "Be brief." }, scope: "global" } })).body;
+    expect(s.scope).toBe("global");
+    let detail = (await api(`/api/skills/${s.id}`)).body;
+    expect(detail.agents.every((a: any) => a.on)).toBe(true);
+    detail = (await api(`/api/skills/${s.id}`, { method: "PUT", json: { assign: { developer: false } } })).body;
+    expect(detail.agents.find((a: any) => a.id === "developer").on).toBe(false);
+    expect((await api("/api/agents/developer")).body.agent.skills).toContainEqual({ skillId: s.id, enabled: false });
+  });
+
+  it("imports skill folders", async () => {
+    const r = (await api("/api/skills/import", { method: "POST", json: { folders: [{ files: { "SKILL.md": "---\nname: Checklist\n---\n- [ ] one", "tool.sh": "echo hi" } }], scope: "agents", agentIds: ["writer"] } })).body;
+    expect(r.created[0].name).toBe("Checklist");
+    expect(r.warnings.join(" ")).toMatch(/never runs/);
+  });
+
+  it("deleting a skill removes it from agents", async () => {
+    const s = (await api("/api/skills", { method: "POST", json: { skill: { name: "Temp" }, scope: "agents", agentIds: ["ceo"] } })).body;
+    await api(`/api/skills/${s.id}`, { method: "DELETE" });
+    expect((await api("/api/agents/ceo")).body.agent.skills.some((r: any) => r.skillId === s.id)).toBe(false);
+  });
+});

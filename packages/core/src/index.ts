@@ -9,4 +9,5 @@ export * from "./connectors/contract";
 export { isToolAllowed, splitToolId, ALWAYS_APPROVE } from "./connectors/registry";
 export * from "./state/reducer";
 export * from "./templates";
+export * from "./templates/skills";
 export * from "./importers/agent-factory";

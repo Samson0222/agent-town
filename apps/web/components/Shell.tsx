@@ -9,6 +9,7 @@ const NAV = [
   { href: "/", label: "Start", icon: Sparkles, match: (p: string) => p === "/" },
   { href: "/runs", label: "Runs", icon: History, match: (p: string) => p.startsWith("/runs") },
   { href: "/agents", label: "Agents", icon: Bot, match: (p: string) => p.startsWith("/agents") },
+  { href: "/skills", label: "Skills", icon: BookOpen, match: (p: string) => p.startsWith("/skills") },
   { href: "/teams", label: "Teams", icon: Users, match: (p: string) => p.startsWith("/teams") },
   { href: "/workflows", label: "Workflows", icon: Workflow, match: (p: string) => p.startsWith("/workflows") },
 ];

@@ -4,11 +4,11 @@ Update this file whenever the current phase, active feature, or implementation s
 
 ## Current Phase
 
-- **Autonomous session (user asleep), working items 1→5:** 1 pixel office ✅ · 2 shared agent list ✅ · 3 skills library · 4 step-list workflows · 5 OpenCode 2.2.0 adapter (mocks only).
+- **Autonomous session (user asleep), working items 1→5:** 1 pixel office ✅ · 2 shared agent list ✅ · 3 skills library ✅ · 4 step-list workflows · 5 OpenCode 2.2.0 adapter (mocks only).
 
 ## Current Goal
 
-- Item 3: skills library (write / import folder / starters / GitHub install with preview + pinned commit), global vs agent scope, skills in prompts.
+- Item 4: step-list workflow mode as the default for new workflows (who / what + review loop, needs my approval, parallel with previous) generating the graph; graph builder stays as advanced.
 
 ## Completed
 
@@ -43,6 +43,13 @@ Update this file whenever the current phase, active feature, or implementation s
   - teams pick members from the library (`memberIds`); automatic migration of embedded agents, with clashes renamed and workflows remapped. Tested on a real old database.
   - avatars = the agent's pixel-office character
 
+- **Item 3 — Skills library (2026-11-03):**
+  - `/skills` with **New skill**: write one, import a folder (one or many SKILL.md folders), install from GitHub (preview → install, pinned to the exact commit, "Update from source", scripts kept as text and never run), 4 starter skills
+  - scope chosen when adding: **All agents** (switch off per agent) or **Specific agents**
+  - skill page: edit SKILL.md and extra files, scope, who has it
+  - agent pages show global and own skills
+  - at run time, active skills go into the prompt next to the instructions (or natively for runtimes with the `skills` capability), logged as `skills.loaded`
+
 ## In Progress
 
 - None. Waiting on the user (see Next Up).
@@ -55,6 +62,7 @@ Update this file whenever the current phase, active feature, or implementation s
 
 ## Open Questions
 
+- **GitHub skill install wasn't tried against real GitHub**: this container's network returns 403 for api.github.com. It's covered by tests against a fake GitHub API. Please try one real install locally (e.g. a public skill folder URL).
 - Re-run `npm run verify:opencode -- --serve` to confirm the `@opencode/client` session check, the auth header for `OPENCODE_SERVER_PASSWORD`, and the `session.usage.updated` payload (cost / tokens).
 - Claude Code adapter (M3): Agent SDK (TypeScript) or headless `claude` CLI?
 - OpenConnector: where it runs locally, and whether the connector demo should read a GitHub issue or a Notion page.

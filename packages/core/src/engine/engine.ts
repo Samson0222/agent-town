@@ -4,7 +4,8 @@ import type { RuntimeAdapterRegistry } from "../adapters/registry";
 import type { Vault } from "../connectors/contract";
 import { isToolAllowed, type ConnectorRegistry } from "../connectors/registry";
 import type { AgentInfo, AgentStatus, AgentTownEvent, EventDraft, RunStatus, TaskStage } from "../events";
-import { resolveAgent, type AgentTemplate, type Team } from "../schema/team";
+import { agentSkills, resolveAgent, type AgentTemplate, type Team } from "../schema/team";
+import { renderSkillsForPrompt } from "../schema/skill";
 import { entryNodes, type Workflow, type WorkflowNode } from "../schema/workflow";
 import { GraphIndex, selectEdges, type NodeResult } from "./graph";
 import { checkAgentForNode, nodeAgentId, nodeUsesRuntime, preflight, type PreflightResult } from "./preflight";
@@ -458,6 +459,21 @@ export class Run {
       });
     }
 
+    // Skills: native for runtimes that support them, otherwise next to the instructions.
+    const skills = agentSkills(this.team, agent);
+    const nativeSkills = (await adapter.listCapabilities()).includes(CAPABILITIES.skills);
+    const systemPrompt = nativeSkills || !skills.length ? agent.systemPrompt : [agent.systemPrompt, renderSkillsForPrompt(skills)].filter(Boolean).join("\n\n");
+    if (skills.length) {
+      this.emit({
+        type: "runtime.event",
+        kind: "skills.loaded",
+        message: `Skills: ${skills.map((s) => s.name).join(", ")}${nativeSkills ? " (native)" : " (in instructions)"}`,
+        from: agentId,
+        nodeId: node.id,
+        runtime,
+      });
+    }
+
     const tryModel = async (modelId: string): Promise<string> => {
       const { sessionId } = await adapter.startSession({
         runId: this.id,
@@ -465,9 +481,10 @@ export class Run {
         agentId,
         agentName: agent.name,
         role: agent.role,
-        systemPrompt: agent.systemPrompt,
+        systemPrompt,
         model: modelId,
         allowedTools: sessionTools,
+        skills: nativeSkills ? skills.map((s) => ({ id: s.id, name: s.name, description: s.description, content: s.content, files: s.files })) : undefined,
       });
       const key = `${node.id}:${sessionId}`;
       this.sessions.set(key, { adapter, sessionId });

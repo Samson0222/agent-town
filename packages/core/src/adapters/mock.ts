@@ -272,7 +272,10 @@ export function mockOutput(opts: SessionOptions, prompt: PromptInput): string {
   } else {
     body = `## Result\nCompleted the step. (Mock content.)`;
   }
-  return `${heading}\n\n${intro}\n\n${body}\n`;
+  // Show which skills reached the prompt, so skills are visible in mock runs.
+  const skillNames = [...`${opts.systemPrompt}`.matchAll(/^### Skill: (.+)$/gm)].map((m) => m[1]);
+  const skillLine = skillNames.length ? `\n\n_Applied skills: ${skillNames.join(", ")}._` : "";
+  return `${heading}\n\n${intro}\n\n${body}${skillLine}\n`;
 }
 
 function escapeHtml(s: string): string {
