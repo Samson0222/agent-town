@@ -34,7 +34,9 @@ const section = (s) => log(`\n== ${s} ==`);
 export function redact(text) {
   return String(text)
     .replace(/("?[A-Za-z0-9_]*(?:key|token|secret|password|auth)[A-Za-z0-9_]*"?\s*[:=]\s*)"?[^",\s}]+"?/gi, '$1"***"')
-    .replace(/(sk-|pk-|ghp_|gho_|github_pat_|xox[bap]-)[A-Za-z0-9_-]{6,}/g, "$1***");
+    .replace(/(sk-|pk-|ghp_|gho_|github_pat_|xox[bap]-)[A-Za-z0-9_-]{6,}/g, "$1***")
+    // Account / org identifiers are not secrets, but keep them out of shared reports.
+    .replace(/\b(org|acct|user)_[A-Za-z0-9]{8,}\b/g, "$1_***");
 }
 
 /** Run a command; shell:true so Windows .cmd shims (opencode.cmd, npm.cmd) resolve. */

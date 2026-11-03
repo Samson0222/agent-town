@@ -63,7 +63,7 @@ async function v2(mod) {
   })();
 
   const session = await client.session.create({ title: "agent-town-m0", location: { directory } });
-  show("session.create", { id: session?.id, keys: keys(session) });
+  show("session.create", { id: session?.id, fields: keys(session), cost: session?.cost, tokens: session?.tokens });
 
   if (doPrompt && session?.id) {
     console.log("sending one tiny prompt (spends a little credit)…");
@@ -71,7 +71,13 @@ async function v2(mod) {
     await client.session.wait({ sessionID: session.id });
     try {
       const ctx = await client.session.context({ sessionID: session.id });
-      show("session.context (last message keys)", keys(ctx?.at?.(-1)));
+      show("session.context (last message fields)", keys(ctx?.at?.(-1)));
+      try {
+        const info = await client.session.get({ sessionID: session.id });
+        show("session cost/tokens after prompt", { cost: info?.cost, tokens: info?.tokens });
+      } catch (e) {
+        console.log(`session.get failed: ${e.message}`);
+      }
       show("last message", ctx?.at?.(-1));
     } catch (e) {
       console.log(`session.context failed: ${e.message}`);
@@ -81,7 +87,8 @@ async function v2(mod) {
   }
 
   ac.abort();
-  await sub;
+  // Some stream implementations don't end on abort; never let that hang the check.
+  await Promise.race([sub, new Promise((r) => setTimeout(r, 2000))]);
   console.log(`event stream connected: ${eventsOk}`);
   show("event types seen (type → payload keys)", Object.fromEntries(seen));
 
@@ -119,6 +126,7 @@ try {
     else throw new Error("Neither @opencode/client (2.x) nor @opencode-ai/sdk (1.x) is installed in .m0/");
   }
   console.log("SDK CHECK: OK");
+  process.exit(0); // don't wait on any lingering stream
 } catch (e) {
   console.log(`SDK CHECK: FAILED — ${e.message}`);
   if (/401|403|unauthor/i.test(e.message)) console.log("Hint: server auth header format may differ in this version — report this line.");

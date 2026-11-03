@@ -56,7 +56,7 @@ Run on the user's machine (Windows 11, Node v24.22.1) on 2026-11-03 with `--serv
 | Tier detection rule | `opencode-go` provider present → Go subscription; `opencode` provider → Zen (pay per use); `openrouter` → OpenRouter key. Detected at runtime, never hardcoded. |
 | User permission config | Global allow, with ask on `.env` reads and external dirs; denies `git push`, `git reset --hard`, `rm -rf` etc. The adapter must respect these, and `permission.asked` events should map to our *waiting-for-human* status. |
 | `opencode serve` | reachable on 127.0.0.1:4096 ✅ |
-| SDK session check | ⏸ The first run used the wrong package (`@opencode/sdk`). The check is fixed to use `@opencode/client`; **re-run needed**. |
+| SDK session check | ✅ 2nd run: `@opencode/client` connected; `server.info` → v2.2.0; `model.list` / `provider.list` / `agent.list` work; `session.create` works with **no auth header problems** (password sent as Basic auth). The script then hung on stopping the event stream (fixed). Event types and the per-prompt cost payload are still to be captured in one more run. |
 
 ### 2.x client surface (read from `@opencode/client@2.2.0` type definitions)
 - `session.create({ title, model: { id, providerID }, location: { directory } })`, `session.prompt({ sessionID, text })`, `session.wait`, `session.interrupt` (→ our cancel), `session.context`, `session.remove`
@@ -71,3 +71,9 @@ Run on the user's machine (Windows 11, Node v24.22.1) on 2026-11-03 with `--serv
 
   These map directly onto our normalized `RuntimeEvent`s.
 - Still unknown until the re-run: the exact `OPENCODE_SERVER_PASSWORD` auth header format, and the payload shape of `session.usage.updated` (cost / tokens).
+
+### Findings from the 2nd run (2026-11-03)
+- `model.list` entries include `providerID`, `capabilities.tools`, `variants` (reasoning effort `low / high / max`), `cost` (per-token prices), `limit.context`, `status` and `enabled`. That is enough for the model picker and for cost estimates.
+- `session.create` returns `id, projectID, cost, tokens, time, title, location`, so **the session carries running cost and tokens**. The adapter can report cost from it (`costReporting` capability).
+- `agent.list` exposes OpenCode's own agents (e.g. `build`) with the user's permission rules (ask on `.env`, deny `git push` etc.). Agent Town sessions should run as `build` unless configured otherwise, and `permission.asked` → waiting-for-human.
+- Report hygiene: the org id (`org_…`) appeared unmasked. It is not a secret, but it is now masked too.
