@@ -1,0 +1,20 @@
+{
+  "name": "agent-town",
+  "private": true,
+  "version": "0.3.0",
+  "description": "Agent Town: a visualizable, multi-agent office for user-created teams and workflows.",
+  "workspaces": ["packages/*", "apps/*"],
+  "engines": { "node": ">=22.13" },
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "dev:server": "npm run dev -w @agent-town/server",
+    "dev:web": "npm run dev -w @agent-town/web",
+    "test": "npm test -w @agent-town/core && npm test -w @agent-town/server",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "build": "npm run build -w @agent-town/web"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3",
+    "@types/node": "22.20.5"
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "name": "@agent-town/core",
+  "version": "0.3.0",
+  "private": true,
+  "type": "module",
+  "description": "Runtime-agnostic core: data model, workflow schema v1, event model, adapter/connector contracts, workflow engine, mock runtime.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./engine": "./src/engine/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "vitest": "3.2.7"
+  }
+}

@@ -1,0 +1,22 @@
+node_modules/
+.next/
+out/
+dist/
+*.tsbuildinfo
+next-env.d.ts
+
+# Local runtime data — never commit
+data/
+vault/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Credentials — never commit
+.env
+.env.*
+!.env.example
+auth.json
+**/opencode/auth.json
+m0-opencode-report*.txt
