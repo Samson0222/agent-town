@@ -7,6 +7,8 @@ import {
   starterTemplates,
   blankWorkflow,
   validateWorkflowGraph,
+  importAgentFactoryTemplate,
+  type AgentFactoryFiles,
   type AgentTownEvent,
   type Workflow,
 } from "@agent-town/core";
@@ -45,7 +47,7 @@ const newId = (base: string) => `${slug(base)}-${Math.random().toString(36).slic
 
 export function createApp(opts: AppOptions) {
   const store = new Store(opts.dbFile);
-  const vault = new DiskVault(opts.vaultDir);
+  const vault = new DiskVault(opts.vaultDir, (runId) => store.runVaultDir(runId));
 
   // Layer 1: runtime adapters. Milestone 2 registers OpenCode here; M3 Claude Code.
   const adapters = new RuntimeAdapterRegistry().register(new MockAdapter({ stepMs: opts.mockStepMs ?? 350 }));
@@ -63,8 +65,48 @@ export function createApp(opts: AppOptions) {
     onEvent: (ev: AgentTownEvent) => {
       store.appendEvent(ev);
       for (const res of sse.get(ev.runId) ?? []) res.write(`id: ${ev.seq}\ndata: ${JSON.stringify(ev)}\n\n`);
+      if (ev.type === "run.completed" || ev.type === "run.failed" || ev.type === "run.stopped") void writeRunSummary(ev.runId).catch(() => undefined);
     },
   });
+
+  /** `_run.md` in the run folder: a metadata header like AI Agent Office's reports, plus the step table. */
+  async function writeRunSummary(runId: string) {
+    const run = store.getRun(runId);
+    if (!run) return;
+    const steps = store.stepRuns(runId);
+    const files = (await vault.listFiles(runId)).filter((f) => f !== "_run.md");
+    const agentName = (id: unknown) => run.team.agents.find((a) => a.id === id)?.name ?? String(id ?? "-");
+    const lines = [
+      "---",
+      `run: ${run.id}`,
+      `workflow: ${JSON.stringify(run.workflowName)} (rev ${run.workflow.revision})`,
+      `team: ${JSON.stringify(run.team.name)}`,
+      `status: ${run.status}`,
+      `started: ${run.createdAt}`,
+      `ended: ${run.endedAt ?? ""}`,
+      `cost_usd: ${run.costUsd}`,
+      "---",
+      "",
+      `# ${run.workflowName}`,
+      "",
+      ...Object.entries(run.inputs).map(([k, v]) => `**${k}:** ${v}`),
+      "",
+      "## Steps",
+      "",
+      "| Step | Attempt | Agent | Runtime / model | Status | Duration | Tokens | Cost |",
+      "|---|---|---|---|---|---|---|---|",
+      ...steps.map(
+        (r) =>
+          `| ${r.node_id} | ${r.attempt} | ${agentName(r.agent_id)} | ${r.runtime ?? "-"}${r.model ? ` / ${r.model}` : ""} | ${r.status} | ${r.duration_ms ?? "-"} ms | ${r.tokens} | $${Number(r.cost_usd).toFixed(5)} |`,
+      ),
+      "",
+      "## Files",
+      "",
+      ...files.map((f) => `- [${f}](${encodeURI(f)})`),
+      "",
+    ];
+    await vault.writeFile(runId, "_run.md", lines.join("\n"));
+  }
 
   // Runs interrupted by a restart can't resume their in-memory state: close them honestly.
   for (const o of store.orphanedRuns()) {
@@ -132,6 +174,25 @@ export function createApp(opts: AppOptions) {
     const src = mustTeam(p.id!);
     const id = newId(src.name);
     return store.saveTeam({ ...src, id, name: `${src.name} (copy)`, vault: id, createdAt: undefined });
+  });
+  /** Import one or more Agent Factory role-template folders into a team (format only; see core/importers). */
+  route("POST", "/api/teams/:id/import/agent-factory", async (_q, _r, p, body) => {
+    const team = mustTeam(p.id!);
+    const templates = ((body ?? {}) as { templates?: AgentFactoryFiles[] }).templates ?? [];
+    if (!templates.length) fail(400, "No templates in the request");
+    const models = new Set<string>();
+    for (const m of adapters.manifests()) for (const x of await adapters.require(m.id).listModels().catch(() => [])) models.add(x.id);
+    const palette = ["#2a9d8f", "#e76f51", "#4f86f7", "#9b5de5", "#e9c46a", "#43aa8b", "#f15bb5", "#577590"];
+    const imported: Array<{ id: string; name: string; notes: string[] }> = [];
+    const agents = [...team.agents];
+    for (const files of templates) {
+      const { agent, notes } = importAgentFactoryTemplate(files, { knownModel: (id) => models.has(id), color: palette[agents.length % palette.length] });
+      let id = agent.id;
+      for (let i = 2; agents.some((a) => a.id === id); i++) id = `${agent.id}-${i}`;
+      agents.push({ ...agent, id });
+      imported.push({ id, name: agent.name, notes });
+    }
+    return { team: store.saveTeam(Team.parse({ ...team, agents })), imported };
   });
   route("DELETE", "/api/teams/:id", (req, _r, p) => {
     mustTeam(p.id!);
@@ -202,13 +263,21 @@ export function createApp(opts: AppOptions) {
     const pf = await engine.preflight(wf, team, inputs);
     if (!pf.ok && !b.force) fail(422, "Preflight failed", pf);
     store.createRun(runId, wf, team, inputs);
+    await vault.ensureTeamVault(team.vault);
+    store.setRunVaultDir(runId, DiskVault.runFolder(team.vault, wf.name, runId));
     await engine.start(wf, team, inputs, { runId, force: b.force });
     return { runId, preflight: pf };
   });
   route("GET", "/api/runs/:id", (_q, _r, p) => {
     const run = store.getRun(p.id!) ?? fail(404, "Run not found");
     const events = store.events(p.id!);
-    return { run, events, state: reduceRunState(events), live: !!engine.get(p.id!) && !engine.get(p.id!)!.isTerminal() };
+    return {
+      run,
+      events,
+      state: reduceRunState(events),
+      live: !!engine.get(p.id!) && !engine.get(p.id!)!.isTerminal(),
+      vaultDir: store.runVaultDir(p.id!) ?? `runs/${p.id}`,
+    };
   });
   route("GET", "/api/runs/:id/stream", (req, res, p) => {
     if (!store.getRun(p.id!)) fail(404, "Run not found");
@@ -248,6 +317,7 @@ export function createApp(opts: AppOptions) {
     return { ok: true };
   });
   route("GET", "/api/runs/:id/files", async (_q, _r, p) => vault.listFiles(p.id!));
+  route("GET", "/api/runs/:id/steps", (_q, _r, p) => store.stepRuns(p.id!));
   route("GET", "/api/runs/:id/files/:path*", async (_q, res, p) => {
     const content = await vault.readFile(p.id!, decodeURIComponent(p.path!));
     if (content === undefined) fail(404, "File not found");

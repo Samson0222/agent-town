@@ -44,6 +44,7 @@ export function toTownStatus(a: AgentState, runStatus: RunStatus, tool?: string)
 function bubbleFor(a: AgentState): string | null {
   if (a.status === "waiting-for-human") return "Waiting for you!";
   if (a.status === "failed") return a.message ? `Failed: ${a.message}`.slice(0, 60) : "Failed";
+  if (a.currentTool && a.status === "working") return `Using ${a.currentTool}`.slice(0, 60);
   if (a.message && (a.status === "thinking" || a.status === "working")) return a.message.slice(0, 60);
   return null;
 }
@@ -115,7 +116,7 @@ export function Office({ state, agents, environment = "town", onAgentClick, clas
         const ch = town.getAgent(a.id);
         if (ch) ch.palette = { ...ch.palette, shirt: a.color };
       }
-      const status = toTownStatus(a, state.status);
+      const status = toTownStatus(a, state.status, a.currentTool);
       const bubble = bubbleFor(a);
       const key = `${status}|${bubble ?? ""}`;
       if (last.current.get(a.id) !== key) {

@@ -101,6 +101,16 @@ Our current storage (SQLite event log + `data/vault/runs/<id>/` Markdown/HTML fi
 
 ---
 
+## Status (2026-11-03)
+
+| Item | Status |
+|---|---|
+| Office → agent-town renderer + wrapper + `ambient:false` patch | ✅ done (vendored; also patch 0002 for an upstream crash) |
+| Reducer: current tool, tokens | ✅ done |
+| Agent Factory importer + `emoji` / `description` / `group` | ✅ done |
+| AI Agent Office vault layout + per-step table | ✅ done |
+| Mission-Control push adapter | 📝 planned for M4 (no change now) |
+
 ## Proposed order of work (after the user confirms)
 1. Office → `agent-town` library + wrapper + `ambient: false` patch (largest visible change).
 2. Reducer additions from OpenClaw Office (current tool, speech text, tokens).

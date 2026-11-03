@@ -1,7 +1,8 @@
 "use client";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { FolderInput } from "lucide-react";
 import type { AgentTemplate, Team } from "@agent-town/core";
 import { api, errorText, type RuntimeInfo, type ToolInfo } from "@/lib/api";
 
@@ -16,6 +17,7 @@ function newAgent(team: Team): AgentTemplate {
     name: `Agent ${n}`,
     role: "Generalist",
     department: "General",
+    description: "",
     systemPrompt: "",
     tools: [],
     permissions: { autoApproveWrite: false, shell: false },
@@ -30,6 +32,8 @@ export default function TeamEditor() {
   const [tools, setTools] = useState<ToolInfo[]>([]);
   const [sel, setSel] = useState(0);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [importNotes, setImportNotes] = useState<string[]>([]);
+  const folderRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     Promise.all([api<Team>(`/api/teams/${id}`), api<RuntimeInfo[]>("/api/runtimes"), api<{ tools: ToolInfo[] }>("/api/connectors")])
@@ -51,6 +55,41 @@ export default function TeamEditor() {
   const effectiveRuntime = agent?.runtime || team.defaults.runtime;
   const models = runtimes.find((r) => r.id === effectiveRuntime)?.models ?? [];
   const defaultModels = runtimes.find((r) => r.id === team.defaults.runtime)?.models ?? [];
+
+  /**
+   * Import Agent Factory role templates from a folder the user picks. Accepts one template folder
+   * or a parent folder containing many; every folder with a template.json becomes one agent.
+   */
+  async function importFolder(list: FileList) {
+    const byDir = new Map<string, Record<string, string>>();
+    for (const f of Array.from(list)) {
+      const rel = (f as File & { webkitRelativePath?: string }).webkitRelativePath || f.name;
+      const parts = rel.split("/");
+      const name = parts.pop()!;
+      if (!["template.json", "IDENTITY.md", "SOUL.md", "TOOLS.md"].includes(name)) continue;
+      const dir = parts.join("/");
+      const entry = byDir.get(dir) ?? {};
+      entry[name] = await f.text();
+      byDir.set(dir, entry);
+    }
+    const templates = [...byDir.values()].filter((e) => e["template.json"]);
+    if (!templates.length) {
+      setMsg({ ok: false, text: "No template.json found in that folder." });
+      return;
+    }
+    try {
+      if (team) await api(`/api/teams/${id}`, { method: "PUT", json: team }); // keep unsaved edits
+      const r = await api<{ team: Team; imported: Array<{ id: string; name: string; notes: string[] }> }>(`/api/teams/${id}/import/agent-factory`, {
+        json: { templates },
+      });
+      setTeam(r.team);
+      setSel(r.team.agents.length - 1);
+      setMsg({ ok: true, text: `Imported ${r.imported.length} agent${r.imported.length > 1 ? "s" : ""}: ${r.imported.map((a) => a.name).join(", ")}` });
+      setImportNotes([...new Set(r.imported.flatMap((a) => a.notes))]);
+    } catch (e) {
+      setMsg({ ok: false, text: errorText(e) });
+    }
+  }
 
   async function save() {
     try {
@@ -124,6 +163,21 @@ export default function TeamEditor() {
         <aside className="panel p-3">
           <div className="mb-2 flex items-center justify-between">
             <h2 className="font-semibold">Agents</h2>
+            <button className="btn btn-sm btn-ghost" title="Import Agent Factory role templates (template.json + IDENTITY.md / SOUL.md)" onClick={() => folderRef.current?.click()}>
+              <FolderInput size={14} /> Import
+            </button>
+            <input
+              ref={folderRef}
+              type="file"
+              hidden
+              multiple
+              // @ts-expect-error non-standard but widely supported folder picker
+              webkitdirectory=""
+              onChange={(e) => {
+                if (e.target.files?.length) void importFolder(e.target.files);
+                e.target.value = "";
+              }}
+            />
             <button
               className="btn btn-sm"
               onClick={() => {
@@ -134,6 +188,13 @@ export default function TeamEditor() {
               + Add
             </button>
           </div>
+          {importNotes.length > 0 && (
+            <ul className="mb-2 space-y-1 rounded-lg p-2 text-[11px]" style={{ background: "var(--info-soft)", color: "var(--info)" }}>
+              {importNotes.map((n) => (
+                <li key={n}>• {n}</li>
+              ))}
+            </ul>
+          )}
           <ul className="space-y-1">
             {team.agents.map((a, i) => (
               <li key={a.id}>
@@ -168,6 +229,10 @@ export default function TeamEditor() {
             <label className="field">
               Department
               <input className="input" value={agent.department} onChange={(e) => setAgent({ department: e.target.value })} />
+            </label>
+            <label className="field md:col-span-3">
+              Description <span className="hint">(what this agent is for: shown to you, not sent to the model)</span>
+              <input className="input" value={agent.description ?? ""} onChange={(e) => setAgent({ description: e.target.value })} />
             </label>
             <label className="field">
               Runtime

@@ -290,7 +290,9 @@ export function TeamRoster({ agents, state, labels, onSelect, selected }: { agen
                   <span className="truncate text-sm font-semibold">{a.name}</span>
                   <span className="muted truncate text-xs">{a.role}</span>
                 </div>
-                <div className="muted truncate text-xs">{node ? labels[node.id] ?? node.id : a.message ?? "—"}</div>
+                <div className="muted truncate text-xs">
+                  {a.currentTool ? `🔧 ${a.currentTool}` : node ? labels[node.id] ?? node.id : a.message ?? "—"}
+                </div>
               </div>
               <AgentStatusChip status={a.status} />
             </button>
@@ -472,7 +474,7 @@ export function CostMeter({ state, names }: { state: RunState; names: Names }) {
         <span className="flex items-center gap-1.5 text-xl font-bold">
           <CircleDollarSign size={18} style={{ color }} /> {formatUsd(state.cost.total)}
         </span>
-        <span className="muted text-xs">of {formatUsd(state.cost.cap)} cap</span>
+        <span className="muted text-xs">of {formatUsd(state.cost.cap)} cap · {state.cost.tokens.toLocaleString()} tokens</span>
       </div>
       <div className="my-2 h-2 overflow-hidden rounded-full" style={{ background: "var(--bg-soft)" }}>
         <div className="h-2 rounded-full transition-all" style={{ width: `${Math.max(pct, state.cost.total > 0 ? 2 : 0)}%`, background: color }} />
@@ -493,7 +495,7 @@ export function CostMeter({ state, names }: { state: RunState; names: Names }) {
 // ---------------------------------------------------------------------------
 // Outputs
 
-export function Outputs({ runId, files }: { runId: string; files: string[] }) {
+export function Outputs({ runId, files, vaultDir }: { runId: string; files: string[]; vaultDir?: string }) {
   const [open, setOpen] = useState<{ file: string; content: string } | null>(null);
   const [mode, setMode] = useState<"preview" | "source">("preview");
   const show = async (file: string) => {
@@ -506,6 +508,11 @@ export function Outputs({ runId, files }: { runId: string; files: string[] }) {
   return (
     <div>
       {deliverables.length === 0 && steps.length === 0 && <p className="muted text-sm">Files appear here as agents save them.</p>}
+      {vaultDir && (
+        <p className="muted mb-2 break-all font-mono text-[11px]" title="Folder on your computer, inside data/vault">
+          📁 vault/{vaultDir}
+        </p>
+      )}
       <ul className="space-y-1.5">
         {deliverables.map((f) => (
           <li key={f}>
@@ -642,10 +649,7 @@ export function AgentDrawer({ agent, state, events, names, labels, onClose }: { 
               <AlertTriangle size={16} /> {current.error}
             </p>
           )}
-          <div>
-            <div className="section-title mb-2">Log</div>
-            <EventLog events={mine} names={names} height={300} />
-          </div>
+          <ActivityFeed events={mine} names={names} labels={labels} colors={{ [agent.id]: agent.color }} height={320} />
         </div>
       </aside>
     </>

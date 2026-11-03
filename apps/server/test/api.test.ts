@@ -95,3 +95,40 @@ describe("API", () => {
     expect(res.status).toBe(403);
   });
 });
+
+describe("vault layout + step runs + Agent Factory import", () => {
+  it("writes run outputs under <team vault>/04-OUTPUTS and records step runs", async () => {
+    const fs = await import("node:fs");
+    const start = await api("/api/runs", { method: "POST", json: { workflowId: "content-post", inputs: {} } });
+    const runId = start.body.runId as string;
+    let detail: any;
+    for (let i = 0; i < 200; i++) {
+      detail = (await api(`/api/runs/${runId}`)).body;
+      if (detail.state.status === "completed") break;
+      await new Promise((r) => setTimeout(r, 10));
+    }
+    expect(detail.state.status).toBe("completed");
+    expect(detail.vaultDir).toMatch(/^content-team\/04-OUTPUTS\/\d{4}-\d{2}-\d{2}-content-team-blog-post-/);
+    expect(fs.existsSync(join(dir, "vault", "content-team", "00-INBOX"))).toBe(true);
+    expect(fs.existsSync(join(dir, "vault", detail.vaultDir, "post.md"))).toBe(true);
+    const steps = (await api(`/api/runs/${runId}/steps`)).body;
+    expect(steps.find((s: any) => s.node_id === "draft" && s.attempt === 2)?.status).toBe("success");
+    expect(steps.find((s: any) => s.node_id === "draft").tokens).toBeGreaterThan(0);
+    const summary = join(dir, "vault", detail.vaultDir, "_run.md");
+    const read = () => (fs.existsSync(summary) ? fs.readFileSync(summary, "utf8") : "");
+    for (let i = 0; i < 200 && !read().includes("## Files"); i++) await new Promise((r) => setTimeout(r, 10));
+    expect(read()).toMatch(/^---\nrun: /);
+  });
+
+  it("imports Agent Factory templates into a team", async () => {
+    const r = await api("/api/teams/content-team/import/agent-factory", {
+      method: "POST",
+      json: { templates: [{ "template.json": JSON.stringify({ id: "editor", name: "Copy Chief", defaults: { model: "mock/fast" } }), "SOUL.md": "Be kind." }] },
+    });
+    expect(r.status).toBe(200);
+    expect(r.body.imported[0].id).toBe("editor-2"); // "editor" already exists in this team
+    const added = r.body.team.agents.find((a: any) => a.id === "editor-2");
+    expect(added.model).toEqual({ id: "mock/fast" });
+    expect(added.systemPrompt).toContain("Be kind.");
+  });
+});

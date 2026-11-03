@@ -2,6 +2,23 @@
 
 Newest first. Record decisions and open points from each session.
 
+## 2026-11-03 — UI redesign + alignment done
+
+- **Office:** the npm `agent-town@0.2.0` package contains no JavaScript, so the upstream source is vendored at commit 78e8e91 (MIT) in `packages/office-renderer`. Local changes are only the two patches in `patches/` (ambient switch, overflow crash fix), documented in UPSTREAM.md.
+- **Town is the default scene** (most vivid: buildings per task stage, characters walk between them). There is a scene picker for office / space station / farm / lab / rocket / pirate ship.
+- Wrapper rules:
+  - statuses map at the boundary (waiting-for-human → `waiting_approval` + "Waiting for you!")
+  - outfit colour = the agent's colour, so the roster and the town match
+  - the stage is sized to the scene's shape, with no letterbox
+- **UX:**
+  - Start page asks "What should your team work on?" and auto-checks readiness.
+  - Run page puts approvals in a banner you can't miss, shows the team roster, a plain-English feed (raw log behind a toggle), and steps with Reassign / Add instruction.
+  - Clicking an agent opens a drawer with their task, output and activity.
+- **Alignment:**
+  - reducer tracks the current tool and tokens (OpenClaw Office)
+  - AI Agent Office vault layout + `step_runs` + `_run.md`
+  - Agent Factory importer (format only)
+
 ## 2026-11-03 — OpenCode report received; UI redesign requested
 
 - **OpenCode 2.2.0** on the user's machine. Providers: OpenCode Go, OpenCode Zen (org), and OpenRouter. Pin `@opencode/client@2.2.0`. Details in milestone-0-opencode.md.

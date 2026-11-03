@@ -4,12 +4,12 @@ Update this file whenever the current phase, active feature, or implementation s
 
 ## Current Phase
 
-- Milestone 0 (contracts ✅, OpenCode verification ⏸ waiting on the user's machine) and Milestone 1 (✅, waiting for review).
+- M0: contracts ✅, OpenCode verified (v2.2.0) ✅. The SDK session check needs one re-run with the fixed script.
+- M1: ✅, plus a UI redesign and alignment with the reference projects ✅. Waiting for the user's review.
 
 ## Current Goal
 
-- Align with the brief's reference projects (see [reference-review.md](reference-review.md)): waiting for the user's decisions, then swap the office to the `agent-town` library, add reducer extras, and add the Agent Factory template importer.
-- The user reviews the mock-mode demo and runs `scripts/verify-opencode.sh` locally. Then pin the OpenCode version and start Milestone 2.
+- The user reviews the redesigned UI (Town scene). After their OK, start **M2: the OpenCode adapter on `@opencode/client@2.2.0`**.
 
 ## Completed
 
@@ -20,6 +20,16 @@ Update this file whenever the current phase, active feature, or implementation s
 - Web: team builder, React Flow workflow builder (+ JSON tab, import / export, checks), run view (canvas office, graph, board, logs, cost, approvals, controls, outputs, replay, agent detail).
 - Tests: `npm test` runs 15 core + 5 API tests, all passing. The demo was also driven end-to-end in Chromium (review rejection → sign-off → pause / reassign / resume → gated send → done) with no console errors.
 - M0 script: `npm run verify:opencode` (cross-platform Node; `.sh` kept for macOS/Linux) + `scripts/opencode-sdk-check.mjs`.
+
+- **Session 2 (2026-11-03):**
+  - Reference projects reviewed (docs/reference-review.md).
+  - Office replaced by the vendored `agent-town` renderer (MIT), with patch 0001 `ambient:false` and patch 0002 for an overflow crash. Town scene by default, scene picker.
+  - New UI: sidebar shell, goal-first Start page, Runs list, run page with approval banner, team roster, plain-English activity feed, steps panel, outputs cards, agent drawer.
+  - Reducer: current tool + tokens (OpenClaw Office pattern).
+  - Vault: AI Agent Office layout (`<team>/00-INBOX … 07-SYSTEM`, runs in `04-OUTPUTS/<date>-<workflow>-<run8>/` with `_run.md`), plus a `step_runs` table.
+  - Agent Factory importer (format only, GPL code not copied) with an Import button on the team page.
+  - Windows-friendly scripts.
+  - Tests: 19 core + 7 API.
 
 ## In Progress
 
@@ -33,13 +43,11 @@ Update this file whenever the current phase, active feature, or implementation s
 
 ## Open Questions
 
-- Which repo is "AI Agent Office"? (claw-empire, ajsahni/agents-office, or another; see reference-review.md §3)
-- OK to use the `agent-town` library with a small patch that disables its random ambient behaviour?
-- OK to add an Agent Factory template *importer* (its code is GPL-3.0, so format only, no code copied)?
-- Where OpenConnector runs locally, and which app the connector demo should use (GitHub issue vs Notion page)?
+- Re-run `npm run verify:opencode -- --serve` to confirm the `@opencode/client` session check, the auth header for `OPENCODE_SERVER_PASSWORD`, and the `session.usage.updated` payload (cost / tokens).
 - Claude Code adapter (M3): Agent SDK (TypeScript) or headless `claude` CLI?
-- Final repo slug for publishing (`agent-town-app` / `agent-town-office`)? Not urgent.
+- OpenConnector: where it runs locally, and whether the connector demo should read a GitHub issue or a Notion page.
 - Should pause also cancel and re-queue in-flight steps (needs `cancellation`)? Today in-flight steps finish.
+- Send patches 0001 / 0002 upstream to rafapetter/agent-town? (Needs the user's OK; it publishes something.)
 
 ## Architecture Decisions
 
@@ -48,7 +56,9 @@ Update this file whenever the current phase, active feature, or implementation s
 - Runs snapshot their workflow and team at start.
 - Workflow v1: `schemaVersion` + `revision`; optional `entryNodeIds` for loops back to the first node.
 - `node:sqlite` (Node ≥ 22.13) instead of a native SQLite module.
-- Details: [architecture.md](architecture.md), [discussion.md](discussion.md).
+- Office renderer = vendored rafapetter/agent-town at 78e8e91 (npm 0.2.0 ships no JS). All local changes are in `packages/office-renderer/patches/` and the app compiles against generated `types/`.
+- Vault layout follows AI Agent Office; a run's folder is stored in `runs.vault_dir`.
+- Details: [architecture.md](architecture.md), [discussion.md](discussion.md), [reference-review.md](reference-review.md).
 
 ## Session Notes
 

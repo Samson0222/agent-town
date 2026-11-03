@@ -60,6 +60,8 @@ export type RunDetail = {
   events: AgentTownEvent[];
   state: RunState;
   live: boolean;
+  /** Run folder relative to the vault root, e.g. launch-team/04-OUTPUTS/2026-11-03-launch-brief-1a2b3c4d */
+  vaultDir?: string;
 };
 
 export function formatUsd(n: number): string {

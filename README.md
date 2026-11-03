@@ -16,7 +16,7 @@ npm install
 npm run dev
 ```
 
-Open http://127.0.0.1:3000, keep **Launch Brief** selected, and press **Start run**. You'll see:
+Open http://127.0.0.1:3000, type a goal (or keep the example), keep **Launch Brief** selected, and press **Start run**. You'll see:
 - agents moving between thinking, working and waiting in the office, driven only by events
 - the reviewer rejecting the first draft, which loops back to the writer
 - a human sign-off, then the landing page and launch channels built in parallel
@@ -28,7 +28,8 @@ Try **Pause**, reassign a step to another agent, then **Resume**. Use the **Repl
 ## Layout
 
 ```
-packages/core   runtime-agnostic core: schemas, events, adapter + connector contracts, engine, mock runtime, reducer
+packages/core   runtime-agnostic core: schemas, events, adapter + connector contracts, engine, mock runtime, reducer, importers
+packages/office-renderer   vendored pixel renderer (rafapetter/agent-town, MIT) + documented patches
 apps/server     localhost API (127.0.0.1:4317): SQLite + Markdown vault + SSE
 apps/web        Next.js UI: team builder, workflow builder (React Flow), run view
 scripts/        dev launcher, Milestone 0 OpenCode verification

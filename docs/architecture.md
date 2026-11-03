@@ -32,7 +32,9 @@ Model providers (Layer 2) sit *behind* runtimes. An agent names a model id and a
 | `packages/core/src/state/reducer.ts` | `reduceRunState(events)`: the projection every view uses. |
 | `packages/core/src/templates` | Starter templates. They are plain data and examples only. |
 | `apps/server` | Store (`node:sqlite`), disk vault, REST + SSE. Localhost only. |
-| `apps/web` | Team builder, workflow builder (React Flow), run view (canvas office, graph, board, logs, cost, controls, replay). |
+| `apps/web` | Team builder (+ Agent Factory import), workflow builder (React Flow), run view (office, graph, board, activity, steps, cost, outputs, replay). |
+| `packages/office-renderer` | Vendored [rafapetter/agent-town](https://github.com/rafapetter/agent-town) pixel renderer (MIT) plus documented patches; wrapped by `apps/web/components/Office.tsx`. |
+| `packages/core/src/importers` | Agent Factory role-template importer (our code; format only). |
 
 `@agent-town/core` (root export) is browser-safe and is what the web app imports. `@agent-town/core/engine` is used by the server.
 
@@ -103,6 +105,21 @@ The server persists every event and fans it out over SSE (`/api/runs/:id/stream`
   - `reassign(nodeId, agentId)`: only for steps that aren't running; the new agent is capability-checked first.
   - `redirect(nodeId, note)`: the note is added to that step's next prompt.
 - **Preflight (before every run):** checks graph structure, team match, required inputs, that agents and runtimes exist, and node `requires` against adapter capabilities (errors). It also checks that tool calls are allowed (errors). It warns when an adapter lacks cost reporting, cancellation or allowlist enforcement, or when a model isn't listed.
+
+## Storage layout
+
+- **SQLite** (`data/agent-town.db`):
+  - `teams`, `workflows`
+  - `runs` (snapshot of workflow and team, `vault_dir`)
+  - `events` (the source of truth)
+  - `step_runs` (one row per step attempt: agent, runtime, model, status, duration, tokens, cost; projected from events)
+- **Vault** (`data/vault/`), following AI Agent Office:
+  - `<team vault>/00-INBOX … 07-SYSTEM`
+  - each run writes to `<team vault>/04-OUTPUTS/<YYYY-MM-DD>-<workflow>-<run8>/`: deliverables, `steps/<node>-<attempt>.md`, and `_run.md` (a metadata header plus the step table)
+
+## Office view
+
+The `Office` wrapper pushes `reduceRunState(events)` into the renderer and nothing else. Agent statuses map to renderer activities (`thinking → planning`, `working → coding / reading / searching / reviewing` by current tool, `waiting-for-human → waiting_approval`, `done → success`, `failed → error`, paused run → `paused`). Task stages map to renderer stages (`inbox → todo`, `doing → in_progress`, `review`, `done`). The renderer runs with `ambient: false` (patch 0001), so characters only move when an event changes their status or task.
 
 ## Security / safety
 - Both the server and Next dev bind to `127.0.0.1`. CORS accepts only localhost origins, and other origins get 403.

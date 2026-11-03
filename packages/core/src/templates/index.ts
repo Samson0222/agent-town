@@ -205,7 +205,7 @@ export function starterTemplates(): StarterTemplate[] {
     [contentTeam, contentWorkflow],
   ];
   return pairs.map(([t, w]) => {
-    const team = Team.parse(structuredClone(t));
+    const team = Team.parse({ vault: t.id, ...structuredClone(t) });
     const workflow = parseWorkflow(structuredClone(w));
     return { id: workflow.id, name: workflow.name, description: workflow.description, team, workflow };
   });

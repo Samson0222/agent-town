@@ -9,8 +9,11 @@ import type { AgentInfo, AgentStatus, AgentTownEvent, NodeRunStatus, RunStatus, 
 export interface AgentState extends AgentInfo {
   status: AgentStatus;
   message?: string;
+  /** Tool the agent is using right now (cleared when its step ends). Pattern from OpenClaw Office. */
+  currentTool?: string;
   lastSeq: number;
   costUsd: number;
+  tokens: number;
 }
 
 export interface NodeState {
@@ -58,7 +61,7 @@ export interface RunState {
   tasks: Record<string, TaskState>;
   approvals: Record<string, ApprovalState>;
   files: string[];
-  cost: { total: number; cap: number; simulated: boolean; byAgent: Record<string, number>; byRuntime: Record<string, number> };
+  cost: { total: number; cap: number; simulated: boolean; tokens: number; byAgent: Record<string, number>; byRuntime: Record<string, number> };
   warnings: string[];
   error?: string;
   endReason?: string;
@@ -77,7 +80,7 @@ export function emptyRunState(): RunState {
     tasks: {},
     approvals: {},
     files: [],
-    cost: { total: 0, cap: 0, simulated: false, byAgent: {}, byRuntime: {} },
+    cost: { total: 0, cap: 0, simulated: false, tokens: 0, byAgent: {}, byRuntime: {} },
     warnings: [],
     lastSeq: 0,
   };
@@ -100,7 +103,7 @@ export function applyEvent(s: RunState, ev: AgentTownEvent): RunState {
       s.cost.cap = ev.costCapUsd;
       s.startedAt = ev.ts;
       for (const a of ev.agents) {
-        s.agents[a.id] = { ...a, status: "idle", lastSeq: ev.seq, costUsd: 0 };
+        s.agents[a.id] = { ...a, status: "idle", lastSeq: ev.seq, costUsd: 0, tokens: 0 };
         if (!s.agentOrder.includes(a.id)) s.agentOrder.push(a.id);
       }
       break;
@@ -164,6 +167,7 @@ export function applyEvent(s: RunState, ev: AgentTownEvent): RunState {
         a.status = ev.status;
         a.message = ev.message;
         a.lastSeq = ev.seq;
+        if (ev.status !== "working") a.currentTool = undefined;
       }
       break;
     case "task.created":
@@ -202,12 +206,23 @@ export function applyEvent(s: RunState, ev: AgentTownEvent): RunState {
       if (s.approvals[ev.approvalId]) s.approvals[ev.approvalId]!.resolved = { approved: ev.approved, note: ev.note };
       if (ev.nodeId) node(s, ev.nodeId).status = "running";
       break;
+    case "tool.call":
+      if (ev.from && s.agents[ev.from]) s.agents[ev.from]!.currentTool = ev.tool;
+      break;
+    case "tool.result":
+      if (ev.from && s.agents[ev.from]?.currentTool === ev.tool) s.agents[ev.from]!.currentTool = undefined;
+      break;
     case "output.saved":
       if (!s.files.includes(ev.file)) s.files.push(ev.file);
       break;
     case "cost":
       s.cost.total = ev.total;
       if (ev.cost?.simulated) s.cost.simulated = true;
+      {
+        const tok = (ev.cost?.inputTokens ?? 0) + (ev.cost?.outputTokens ?? 0);
+        s.cost.tokens += tok;
+        if (ev.from && s.agents[ev.from]) s.agents[ev.from]!.tokens += tok;
+      }
       if (ev.from) {
         s.cost.byAgent[ev.from] = (s.cost.byAgent[ev.from] ?? 0) + (ev.cost?.usd ?? 0);
         if (s.agents[ev.from]) s.agents[ev.from]!.costUsd = s.cost.byAgent[ev.from]!;

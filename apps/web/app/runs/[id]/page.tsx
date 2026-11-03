@@ -196,7 +196,7 @@ export default function RunPage() {
           </section>
           <section className="panel p-5">
             <div className="section-title mb-3">Outputs</div>
-            <Outputs runId={id} files={state.files} />
+            <Outputs runId={id} files={state.files} vaultDir={detail.vaultDir} />
           </section>
           <section className="panel p-5">
             <div className="section-title mb-3">Cost</div>

@@ -42,6 +42,10 @@ export const AgentTemplate = z.object({
   name: z.string().min(1),
   role: z.string().min(1),
   department: z.string().default("General"),
+  /** Short description and emoji / group, mirroring the Agent Factory role-template shape. */
+  description: z.string().default(""),
+  emoji: z.string().optional(),
+  group: z.string().optional(),
   systemPrompt: z.string().default(""),
   /** Runtime adapter id, e.g. "mock", "opencode", "claude-code". Empty = team default. */
   runtime: z.string().optional(),

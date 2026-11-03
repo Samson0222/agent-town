@@ -46,7 +46,32 @@ export class Store {
         json TEXT NOT NULL, PRIMARY KEY (run_id, seq)
       );
       CREATE INDEX IF NOT EXISTS events_type ON events(run_id, type);
+      -- One row per step attempt (pattern from AI Agent Office's agent_runs table).
+      CREATE TABLE IF NOT EXISTS step_runs (
+        run_id TEXT NOT NULL, node_id TEXT NOT NULL, attempt INTEGER NOT NULL,
+        agent_id TEXT, runtime TEXT, model TEXT, status TEXT NOT NULL,
+        started_at TEXT NOT NULL, ended_at TEXT, duration_ms INTEGER,
+        tokens INTEGER NOT NULL DEFAULT 0, cost_usd REAL NOT NULL DEFAULT 0,
+        output_chars INTEGER, error TEXT,
+        PRIMARY KEY (run_id, node_id, attempt)
+      );
     `);
+    // Additive migration for databases created before vault_dir existed.
+    const cols = this.db.prepare("PRAGMA table_info(runs)").all().map((r) => String(r.name));
+    if (!cols.includes("vault_dir")) this.db.exec("ALTER TABLE runs ADD COLUMN vault_dir TEXT");
+  }
+
+  setRunVaultDir(runId: string, dir: string): void {
+    this.db.prepare("UPDATE runs SET vault_dir = ? WHERE id = ?").run(dir, runId);
+  }
+
+  runVaultDir(runId: string): string | undefined {
+    const r = this.db.prepare("SELECT vault_dir FROM runs WHERE id = ?").get(runId);
+    return r?.vault_dir ? String(r.vault_dir) : undefined;
+  }
+
+  stepRuns(runId: string): Array<Record<string, unknown>> {
+    return this.db.prepare("SELECT * FROM step_runs WHERE run_id = ? ORDER BY started_at").all(runId) as Array<Record<string, unknown>>;
   }
 
   // Teams --------------------------------------------------------------------
@@ -137,6 +162,49 @@ export class Store {
         break;
       case "cost":
         this.db.prepare("UPDATE runs SET cost_usd = ? WHERE id = ?").run(ev.total, ev.runId);
+        if (ev.nodeId) {
+          this.db
+            .prepare(
+              "UPDATE step_runs SET tokens = tokens + ?, cost_usd = cost_usd + ? WHERE run_id = ? AND node_id = ? AND attempt = (SELECT MAX(attempt) FROM step_runs WHERE run_id = ? AND node_id = ?)",
+            )
+            .run((ev.cost?.inputTokens ?? 0) + (ev.cost?.outputTokens ?? 0), ev.cost?.usd ?? 0, ev.runId, ev.nodeId, ev.runId, ev.nodeId);
+        }
+        break;
+      case "node.started":
+        if (ev.nodeId) {
+          this.db
+            .prepare("INSERT OR REPLACE INTO step_runs (run_id, node_id, attempt, agent_id, status, started_at) VALUES (?, ?, ?, ?, 'running', ?)")
+            .run(ev.runId, ev.nodeId, ev.attempt, ev.agentId ?? null, ev.ts);
+        }
+        break;
+      case "runtime.event":
+        if (ev.kind === "session.started" && ev.nodeId) {
+          const model = ev.message.split(" on ").pop() ?? null;
+          this.db
+            .prepare("UPDATE step_runs SET runtime = ?, model = ? WHERE run_id = ? AND node_id = ? AND attempt = (SELECT MAX(attempt) FROM step_runs WHERE run_id = ? AND node_id = ?)")
+            .run(ev.runtime ?? null, model, ev.runId, ev.nodeId, ev.runId, ev.nodeId);
+        }
+        break;
+      case "node.completed":
+      case "node.failed":
+        if (ev.nodeId) {
+          this.db
+            .prepare(
+              `UPDATE step_runs SET status = ?, ended_at = ?, duration_ms = CAST((julianday(?) - julianday(started_at)) * 86400000 AS INTEGER), output_chars = ?, error = ?
+               WHERE run_id = ? AND node_id = ? AND attempt = (SELECT MAX(attempt) FROM step_runs WHERE run_id = ? AND node_id = ?)`,
+            )
+            .run(
+              ev.type === "node.completed" ? (ev.outcome ?? "success") : "failed",
+              ev.ts,
+              ev.ts,
+              ev.type === "node.completed" ? ev.output.length : null,
+              ev.type === "node.failed" ? ev.error : null,
+              ev.runId,
+              ev.nodeId,
+              ev.runId,
+              ev.nodeId,
+            );
+        }
         break;
     }
   }
