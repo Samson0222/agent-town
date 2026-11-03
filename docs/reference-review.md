@@ -119,3 +119,31 @@ Our current storage (SQLite event log + `data/vault/runs/<id>/` Markdown/HTML fi
 5. Once AI Agent Office is identified, check its vault layout against ours.
 
 The OpenCode check (`npm run verify:opencode -- --serve`) can run in parallel, since it is independent of all of this.
+
+---
+
+## 6. pixel-agents (added 2026-11-03, requested by the user)
+
+[pixel-agents-hq/pixel-agents](https://github.com/pixel-agents-hq/pixel-agents): MIT code. Its office art was migrated to open-source assets (CHANGELOG, PR #117), and its characters are credited as "based on" [JIK-A-4 Metro City](https://jik-a-4.itch.io/metrocity-free-topdown-character-pack). Keep that credit, and re-check the art licenses before any public release.
+
+**Character design (from CONTEXT.md and `webview-ui/src/office/engine/characters.ts`):**
+- **Seat:** each agent owns a persistent seat at a desk, and the assignment is saved. Characters never vanish when work ends.
+- **States:** `TYPE` (seated, typing or reading by tool), `IDLE`, `WALK`.
+- **Agent status:**
+  - **active:** sits and types or reads
+  - **waiting for input / permission:** *stays seated* with a "…" bubble until resolved
+  - **done:** a ✓ bubble that fades, then the character **wanders** (a few moves with pauses) and returns to its seat to rest
+- **Office:** a real office layout (floors, walls, desks, PCs, bookshelves, sofas, plants, pets), editable and persisted, with named areas.
+
+**Fit:** this is the "always in the office" feel the user wants. Wandering happens only while an agent is *done / idle*, so it never fakes work. That keeps to the brief's spirit (no animation pretending to *work*), unlike the agent-town library's ambient mode, which also showed fake bubbles like "Pretending to be busy…".
+
+## 7. Multica (added 2026-11-03, requested by the user)
+
+[multica-ai/multica](https://github.com/multica-ai/multica): the **Multica License** is Apache-2.0 plus extra conditions that restrict hosting or embedding it for third parties. We follow its *UX pattern* and copy no code.
+
+- **New agent** is three steps:
+  1. **Runtime** (only online ones)
+  2. **Configure:** Identity (avatar, name, description shown to people but never sent to the model), Behavior & capabilities (instructions, skills, model), Access
+  3. **Create**, then a "what next" page
+- **Skills:** a reusable package (`SKILL.md` plus optional references, templates and scripts) kept in a **workspace skill library**. You create one manually or import a folder or URL, attach it to many agents, and enable or disable it per agent. Instructions are for one agent only; skills are reusable methods.
+- **Agent detail page:** tabs Overview (Now / Recent work), Work, Capabilities, Settings, plus a side card with runtime, model, skills and usage.
