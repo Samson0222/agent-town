@@ -29,6 +29,8 @@ export const CAPABILITIES = {
   systemPrompt: "systemPrompt",
   /** Can select a model per session. */
   modelSelection: "modelSelection",
+  /** Loads skills natively (otherwise the engine adds them to the instructions). */
+  skills: "skills",
 } as const;
 export type KnownCapability = (typeof CAPABILITIES)[keyof typeof CAPABILITIES];
 
@@ -66,6 +68,8 @@ export interface SessionOptions {
   allowedTools: string[];
   /** Working directory for runtimes that edit files. */
   workdir?: string;
+  /** Enabled skills, passed only to runtimes with the `skills` capability. */
+  skills?: Array<{ id: string; name: string; description: string; content: string; files: Array<{ path: string; content: string }> }>;
 }
 
 export interface SessionHandle {

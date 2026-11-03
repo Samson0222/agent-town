@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { Skill, SkillRef } from "./skill";
 
 /**
  * Team + Agent template schema. Everything here is user-created data:
@@ -53,6 +54,8 @@ export const AgentTemplate = z.object({
   model: ModelRef.optional(),
   /** Tool ids ("connectorId.toolName" or "connectorId.*") this agent may use. */
   tools: z.array(z.string()).default([]),
+  /** Skills from the shared library, each switchable on/off for this agent. */
+  skills: z.array(SkillRef).default([]),
   permissions: AgentPermissions.default({ autoApproveWrite: false, shell: false }),
   appearance: AgentAppearance.default({ color: "#4f86f7", sprite: "default" }),
   /** Optional per-agent cost cap in USD for one run. */
@@ -80,7 +83,15 @@ export const Team = z.object({
     model: { id: "mock/standard" },
     costCapUsd: 1,
   }),
+  /** Agent ids from the shared agent library. */
+  memberIds: z.array(z.string()).default([]),
+  /**
+   * Resolved members (filled by the server from the agent library when a team is read
+   * or a run starts; a run snapshot keeps them). Not the source of truth for membership.
+   */
   agents: z.array(AgentTemplate).default([]),
+  /** Resolved skills used by the members (filled for runs, kept in the run snapshot). */
+  skills: z.array(Skill).default([]),
   createdAt: z.string().optional(),
   updatedAt: z.string().optional(),
 });
@@ -96,4 +107,10 @@ export function resolveAgent(team: Team, agent: AgentTemplate): {
     runtime: agent.runtime || team.defaults.runtime,
     model: agent.model ?? team.defaults.model,
   };
+}
+
+/** Enabled skills of an agent, resolved against the team's skill list. */
+export function agentSkills(team: Team, agent: AgentTemplate): Skill[] {
+  const byId = new Map(team.skills.map((s) => [s.id, s]));
+  return agent.skills.filter((r) => r.enabled).map((r) => byId.get(r.skillId)).filter((s): s is Skill => !!s);
 }

@@ -14,7 +14,11 @@
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
     "build:assets": "tsx scripts/build-assets.ts",
-    "build:types": "tsc -p tsconfig.types.json"
+    "build:types": "tsc -p tsconfig.types.json",
+    "test": "vitest run"
   },
-  "types": "./types/src/index.d.ts"
+  "types": "./types/src/index.d.ts",
+  "devDependencies": {
+    "vitest": "5.1.0"
+  }
 }

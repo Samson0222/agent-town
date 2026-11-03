@@ -20,6 +20,7 @@ import { renderFrame, type SelectionRenderState } from "../upstream/webview-ui/s
 import { setProviderCapabilities } from "../upstream/webview-ui/src/office/toolUtils";
 import { TILE_SIZE, TileType } from "../upstream/webview-ui/src/office/types";
 import { loadOfficeAssets } from "./loader";
+import { ensureWorkSeats, workSeatIds } from "./desks";
 
 export type OfficeAgentStatus = "idle" | "thinking" | "working" | "waiting-for-human" | "done" | "failed";
 
@@ -146,8 +147,9 @@ export class PixelOffice {
     const top = Math.max(0, r0 - 1); // walls are drawn taller than one tile
     const wTiles = c1 - c0 + 1, hTiles = r1 - top + 1;
     const fit = Math.min(this.canvas.width / (wTiles * TILE_SIZE), this.canvas.height / (hTiles * TILE_SIZE));
-    // Whole-number zoom keeps pixel art crisp; below 1 (tiny containers) scale down smoothly.
-    this.zoom = fit >= 1 ? Math.floor(fit) : fit;
+    // Whole-number zoom keeps pixel art crisp when there is room (≥2×); otherwise use the
+    // largest fractional zoom that fits so big offices don't shrink to 1×.
+    this.zoom = fit >= 2 ? Math.floor(fit) : Math.max(0.5, Math.floor(fit * 4) / 4);
     const z = this.zoom, T = TILE_SIZE;
     // renderFrame centres the full grid; pan it so the occupied area is centred instead.
     this.pan = {
@@ -163,6 +165,11 @@ export class PixelOffice {
       this.pending = agents;
       return;
     }
+    // Everyone gets a desk: grow the office first if the team outgrew the work seats.
+    if (workSeatIds(st.getLayout()).length < agents.length) {
+      st.rebuildFromLayout(ensureWorkSeats(st.getLayout(), agents.length));
+      this.resize();
+    }
     const present = new Set(agents.map((a) => a.id));
     for (const [sid, nid] of [...this.ids]) {
       if (!present.has(sid)) {
@@ -177,8 +184,10 @@ export class PixelOffice {
         nid = this.nextId++;
         this.ids.set(a.id, nid);
         const h = hash(a.id);
+        // Prefer a free seat at a work desk (not the lounge sofa).
+        const seat = workSeatIds(st.getLayout()).find((sid) => !st.seats.get(sid)?.assigned);
         // skipSpawnEffect: agents are simply "in the office", not materialising.
-        st.addAgent(nid, h % Math.max(1, this.characterCount), (h >> 3) % 360, undefined, true);
+        st.addAgent(nid, h % Math.max(1, this.characterCount), (h >> 3) % 360, seat, true);
       }
       const key = `${a.status}|${a.tool ?? ""}`;
       if (this.last.get(a.id) === key) continue;

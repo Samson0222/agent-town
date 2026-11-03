@@ -26,6 +26,13 @@ User asks: simpler agent and workflow creation like Multica; agents designed lik
    A skill is reusable know-how (`SKILL.md` plus files), attached to agents and switchable per agent. *(in progress)*
 6. **Step-list workflow mode** as the default way to make workflows; the graph stays as "advanced". *(in progress)*
 
+### Decisions made while the user was away (item 1)
+- **Desks for everyone.** A "work seat" is a chair facing a work desk; the lounge coffee table doesn't count. When a team has more agents than work seats, the office grows downward. The last interior row is duplicated, so walls and floors stay consistent, and 3×3 pods (desk + PC + bench, the default layout's own pod) are added, **only in the room that already has work desks**. The first attempt also put desks in the kitchen, because a small table there counted as a desk; that's fixed. This is our own code (`packages/pixel-office/src/desks.ts`) and the engine is untouched.
+- **Seat choice.** New agents are given a free *work* seat explicitly. Otherwise the engine could seat a working agent on the sofa.
+- **Zoom.** Whole-number zoom at 2× and above (crisp); below that, quarter steps, so a big office doesn't drop to a tiny 1×. Quarter steps cause slight floor shimmer, which is acceptable.
+- **Turbopack and `.js` imports.** Turbopack can't resolve `./x.js` to `x.ts`, and it has no extension-alias option (checked in Next 16's bundled docs). So the `.js` suffix is stripped from relative imports in vendored files by one documented sed command, the only change to upstream code.
+- **The hydration error seen once** was stale dev-server state after editing the sidebar. A clean restart showed no errors.
+
 ### Fixes
 - A React warning on graph nodes (mixing `border` / `borderColor` with `borderLeft*`): every side is now set individually. The browser check now clicks graph nodes.
 - OpenCode check: installs inside `.m0/`, never hangs on the event stream, masks org ids.

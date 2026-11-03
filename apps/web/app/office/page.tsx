@@ -90,7 +90,7 @@ function IdleOffice({ team }: { team: Team }) {
   const agent = team.agents.find((a) => a.id === selected);
   return (
     <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
-      <section className="panel overflow-hidden">
+      <section className="panel self-start overflow-hidden">
         <div className="flex items-center gap-2 border-b px-4 py-3 text-sm" style={{ borderColor: "var(--line)" }}>
           <span className="font-semibold">{team.name}</span>
           <span className="muted">· nobody is working right now</span>
@@ -145,7 +145,7 @@ function LiveOffice({ team, run }: { team: Team; run: RunRow }) {
   );
   return (
     <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
-      <section className="panel overflow-hidden">
+      <section className="panel self-start overflow-hidden">
         <div className="flex flex-wrap items-center gap-2 border-b px-4 py-3 text-sm" style={{ borderColor: "var(--line)" }}>
           <span className="font-semibold">{team.name}</span>
           <span className="muted">· working on</span>

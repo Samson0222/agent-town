@@ -20,6 +20,7 @@ function newAgent(team: Team): AgentTemplate {
     description: "",
     systemPrompt: "",
     tools: [],
+    skills: [],
     permissions: { autoApproveWrite: false, shell: false },
     appearance: { color: PALETTE[n % PALETTE.length]!, sprite: "default", desk: { x: 1 + ((n - 1) % 4) * 2, y: 1 + Math.floor((n - 1) / 4) * 2 } },
   };

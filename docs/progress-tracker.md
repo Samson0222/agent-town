@@ -4,12 +4,11 @@ Update this file whenever the current phase, active feature, or implementation s
 
 ## Current Phase
 
-- M0: contracts ✅, OpenCode verified (v2.2.0) ✅. The SDK session check needs one re-run with the fixed script.
-- M1: ✅, plus a UI redesign and alignment with the reference projects ✅. Waiting for the user's review.
+- **Autonomous session (user asleep), working items 1→5:** 1 pixel office ✅ · 2 shared agent list · 3 skills library · 4 step-list workflows · 5 OpenCode 2.2.0 adapter (mocks only).
 
 ## Current Goal
 
-- The user reviews the redesigned UI (Town scene). After their OK, start **M2: the OpenCode adapter on `@opencode/client@2.2.0`**.
+- Item 2: shared agent list (Multica-style New agent flow + agent detail page), with teams picking agents and automatic migration.
 
 ## Completed
 
@@ -30,6 +29,13 @@ Update this file whenever the current phase, active feature, or implementation s
   - Agent Factory importer (format only, GPL code not copied) with an Import button on the team page.
   - Windows-friendly scripts.
   - Tests: 19 core + 7 API.
+
+- **Item 1 — Pixel office (2026-11-03):**
+  - pixel-agents engine + art vendored in `packages/pixel-office` (UPSTREAM.md has the commit, MIT and the JIK-A-4 credit)
+  - everyone always in the office, behaviour per pixel-agents rules
+  - `/office` page, live-linked to an active run
+  - auto-added desk pods when a team outgrows the work seats (tested with 10 agents)
+  - old town renderer removed
 
 ## In Progress
 

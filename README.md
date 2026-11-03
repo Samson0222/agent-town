@@ -29,7 +29,7 @@ Try **Pause**, reassign a step to another agent, then **Resume**. Use the **Repl
 
 ```
 packages/core   runtime-agnostic core: schemas, events, adapter + connector contracts, engine, mock runtime, reducer, importers
-packages/office-renderer   vendored pixel renderer (rafapetter/agent-town, MIT) + documented patches
+packages/pixel-office   pixel office engine + art vendored from pixel-agents (MIT); see its UPSTREAM.md
 apps/server     localhost API (127.0.0.1:4317): SQLite + Markdown vault + SSE
 apps/web        Next.js UI: team builder, workflow builder (React Flow), run view
 scripts/        dev launcher, Milestone 0 OpenCode verification

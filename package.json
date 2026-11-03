@@ -14,7 +14,7 @@
     "dev": "node scripts/dev.mjs",
     "dev:server": "npm run dev -w @agent-town/server",
     "dev:web": "npm run dev -w @agent-town/web",
-    "test": "npm test -w @agent-town/core && npm test -w @agent-town/server",
+    "test": "npm test -w @agent-town/core && npm test -w @agent-town/server && npm test -w @agent-town/pixel-office",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "build": "npm run build -w @agent-town/web",
     "verify:opencode": "node scripts/verify-opencode.mjs"
