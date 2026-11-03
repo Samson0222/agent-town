@@ -8,6 +8,7 @@ Update this file whenever the current phase, active feature, or implementation s
 
 ## Current Goal
 
+- Align with the brief's reference projects (see [reference-review.md](reference-review.md)): waiting for the user's decisions, then swap the office to the `agent-town` library, add reducer extras, and add the Agent Factory template importer.
 - The user reviews the mock-mode demo and runs `scripts/verify-opencode.sh` locally. Then pin the OpenCode version and start Milestone 2.
 
 ## Completed
@@ -32,6 +33,9 @@ Update this file whenever the current phase, active feature, or implementation s
 
 ## Open Questions
 
+- Which repo is "AI Agent Office"? (claw-empire, ajsahni/agents-office, or another; see reference-review.md §3)
+- OK to use the `agent-town` library with a small patch that disables its random ambient behaviour?
+- OK to add an Agent Factory template *importer* (its code is GPL-3.0, so format only, no code copied)?
 - Where OpenConnector runs locally, and which app the connector demo should use (GitHub issue vs Notion page)?
 - Claude Code adapter (M3): Agent SDK (TypeScript) or headless `claude` CLI?
 - Final repo slug for publishing (`agent-town-app` / `agent-town-office`)? Not urgent.

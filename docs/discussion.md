@@ -2,6 +2,15 @@
 
 Newest first. Record decisions and open points from each session.
 
+## 2026-11-03 — Reference projects were not used (miss) → review done
+
+- The user asked why the reference projects weren't used. **Answer: a miss on my side.** Session 1 built from the brief's short descriptions without looking up the real repos, and didn't flag that before implementing. The office renderer in particular was hand-written, against the brief ("do not build a pixel renderer from scratch").
+- **Fix:** cloned and read the repos. Findings and recommendations are in [reference-review.md](reference-review.md). Highlights:
+  - The `agent-town` npm library (MIT) should replace our office, but it has built-in random ambient behaviour that must be disabled with a small patch.
+  - Agent Factory is **GPL-3.0**: support its template *format* with our own importer and copy no code.
+  - "AI Agent Office" is not identified yet; ask the user.
+- **Process rule from now on:** before building any part the brief says to reuse or copy, find and read the reference first, and state which parts are reused, which are adapted, and which are our own.
+
 ## 2026-11-03 — User is on Windows 11
 
 - Running `scripts/verify-opencode.sh` on Windows opened the "Select an app" dialog, because Windows can't run `.sh` files.
