@@ -16,18 +16,21 @@ npm install
 npm run dev
 ```
 
-Open http://127.0.0.1:3000, type a goal (or keep the example), keep **Launch Brief** selected, and press **Start run**. You'll see:
-- agents moving between thinking, working and waiting in the office, driven only by events
-- the reviewer rejecting the first draft, which loops back to the writer
-- a human sign-off, then the landing page and launch channels built in parallel
-- the CEO merging the final brief, then a **send** step that waits for your click
-- `launch-brief.md`, `landing.html` and `outbox.md` under **Outputs**
+Open http://127.0.0.1:3000. The sidebar has:
 
-Try **Pause**, reassign a step to another agent, then **Resume**. Use the **Replay** slider to scrub the event log.
+- **Office**: your team in a pixel office, always on screen. Live when they're working; strolling around when they're not.
+- **Start**: type a goal, pick a workflow, press **Start run**. Approvals pop up as a banner; outputs (e.g. `launch-brief.md`, `landing.html`) appear on the run page.
+- **Agents**: create agents (runtime → look and identity → instructions, skills, model) and open each agent's page (Now / Recent work).
+- **Skills**: reusable know-how (`SKILL.md`): write one, import a folder, install from GitHub (preview, pinned commit), or use a starter. Give it to all agents or specific ones.
+- **Teams**: pick members from your agents.
+- **Workflows**: new workflows are a simple **step list** (who / what + review loop, my approval, run in parallel). The graph builder is still there as "advanced".
+
+Everything runs on the free **mock** runtime unless you switch on OpenCode (see docs/milestone-0-opencode.md).
 
 ## Layout
 
 ```
+packages/adapter-opencode   OpenCode 2.2.0 runtime adapter (opt-in)
 packages/core   runtime-agnostic core: schemas, events, adapter + connector contracts, engine, mock runtime, reducer, importers
 packages/pixel-office   pixel office engine + art vendored from pixel-agents (MIT); see its UPSTREAM.md
 apps/server     localhost API (127.0.0.1:4317): SQLite + Markdown vault + SSE
