@@ -2,6 +2,14 @@
 
 Newest first. Record decisions and open points from each session.
 
+## 2026-11-03 — OpenCode report received; UI redesign requested
+
+- **OpenCode 2.2.0** on the user's machine. Providers: OpenCode Go, OpenCode Zen (org), and OpenRouter. Pin `@opencode/client@2.2.0`. Details in milestone-0-opencode.md.
+- In 2.x, `@opencode/sdk` is an in-process host. We use `@opencode/client` against `opencode serve` (matches the brief: backend → localhost server).
+- The user identified **"AI Agent Office" = [Imangali7/ai-agent-office](https://github.com/Imangali7/ai-agent-office)** (MIT). Use only its SQLite (`workforce_os.db`) + numbered Markdown vault pattern (`00-INBOX … 07-SYSTEM`, outputs in `04-OUTPUTS`). Do not use its fixed CEO orchestrator.
+- The user chose: use the agent-town library with a small patch (no ambient behaviour); write our own Agent Factory importer (GPL: format only); do the alignment work now.
+- **User feedback:** the current UI is unfriendly and unintuitive, and the hand-drawn office is ugly. Redesign the layout and make the characters and office more vivid. This comes first.
+
 ## 2026-11-03 — Reference projects were not used (miss) → review done
 
 - The user asked why the reference projects weren't used. **Answer: a miss on my side.** Session 1 built from the brief's short descriptions without looking up the real repos, and didn't flag that before implementing. The office renderer in particular was hand-written, against the brief ("do not build a pixel renderer from scratch").

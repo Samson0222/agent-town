@@ -6,7 +6,7 @@
 |---|---|---|---|---|
 | agent-town (pixel office library) | [rafapetter/agent-town](https://github.com/rafapetter/agent-town), npm `agent-town@0.2.0` | MIT | 2026-03-09 | High: "framework-agnostic pixel-art agent visualization library" |
 | OpenClaw Office | [WW-AI-Lab/openclaw-office](https://github.com/WW-AI-Lab/openclaw-office) | MIT | 2026-06-12 | High |
-| AI Agent Office | **not identified.** Candidates: [GreenSheep01201/claw-empire](https://github.com/GreenSheep01201/claw-empire) and [ajsahni/agents-office](https://github.com/ajsahni/agents-office) | Apache-2.0 / PolyForm Noncommercial + extra terms | 2026-03-17 / 2026-10-08 | Low: **needs the user to confirm** |
+| AI Agent Office | [Imangali7/ai-agent-office](https://github.com/Imangali7/ai-agent-office) (confirmed by the user) | MIT | 2026-09-06 | Confirmed |
 | Agent Factory | [shuanbao0/agent-factory](https://github.com/shuanbao0/agent-factory) | **GPL-3.0** | 2026-04-11 | High: 64 role templates, dashboard, task board, message center |
 | Mission-Control | [builderz-labs/mission-control](https://github.com/builderz-labs/mission-control) | MIT | 2026-10-28 | High: `src/lib/adapters/` with register / heartbeat / report |
 
@@ -53,7 +53,21 @@ This breaks the brief's rule that every visual change must come from a real even
 
 No code needs copying; these are small additions to our reducer.
 
-## 3. AI Agent Office → SQLite + Markdown vault (needs confirmation)
+## 3. AI Agent Office → SQLite + Markdown vault
+
+**Confirmed:** [Imangali7/ai-agent-office](https://github.com/Imangali7/ai-agent-office) (MIT). Node + Express, with SQLite `workforce_os.db` and these tables:
+- `tasks`: `prompt`, `status`, `report_file`, `context_file`
+- `agent_runs`: `input_prompt`, `output_text`, `duration_ms`, `tokens_used`, `model_used`, `status`, `error_message`
+
+Its vault folders are `00-INBOX, 01-KNOWLEDGE, 02-PROJECTS, 03-DAILY, 04-OUTPUTS, 05-RESOURCES, 06-ARCHIVE, 07-SYSTEM`. Intake context is read from `00-INBOX`, and every agent output plus the final report is written to `04-OUTPUTS` as Markdown with a metadata header.
+
+**Adopt:**
+- the numbered vault layout per team vault, with run outputs under `04-OUTPUTS/<run>/` and a Markdown metadata header
+- an `agent_runs`-style per-step table (duration, tokens, model, status)
+
+**Do not adopt:** its fixed CEO decompose/synthesize orchestrator; our workflow engine replaces it.
+
+### Earlier candidates (superseded)
 
 No repo with that exact name matched the brief's description ("SQLite + Markdown vault for runs and outputs; fixed CEO-decomposes-everything logic"). The two closest:
 - **claw-empire** (Apache-2.0): "CEO desk", local SQLite, pixel office, and it drives **OpenCode, Claude Code, Codex and Gemini CLIs**. That makes it a very useful reference for Milestone 2's OpenCode adapter.

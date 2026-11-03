@@ -28,7 +28,7 @@ Update this file whenever the current phase, active feature, or implementation s
 ## Next Up
 
 - **User:** run `npm install && npm run dev`, open http://127.0.0.1:3000, and run the Launch Brief demo. Give feedback or approval.
-- **User (Windows 11):** `git pull`, then `npm install`, then `npm run verify:opencode -- --serve` (optionally add `--smoke`), and share the report.
+- **User:** re-run `npm run verify:opencode -- --serve` after `git pull` (the SDK check now uses `@opencode/client` for 2.x). OpenCode **2.2.0** is detected; see milestone-0-opencode.md → Results.
 - **Then (M2):** OpenCode adapter against the pinned SDK → MCP + OpenConnector connectors → real demo run.
 
 ## Open Questions

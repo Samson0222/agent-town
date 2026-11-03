@@ -39,7 +39,8 @@ export function redact(text) {
 
 /** Run a command; shell:true so Windows .cmd shims (opencode.cmd, npm.cmd) resolve. */
 function run(cmd, cmdArgs, opts = {}) {
-  const r = spawnSync(cmd, cmdArgs, { shell: true, encoding: "utf8", timeout: opts.timeout ?? 120000, cwd: opts.cwd ?? ROOT, env: opts.env ?? process.env });
+  const line = [cmd, ...cmdArgs].join(" ");
+  const r = spawnSync(line, { shell: true, encoding: "utf8", timeout: opts.timeout ?? 120000, cwd: opts.cwd ?? ROOT, env: opts.env ?? process.env });
   return { code: r.status, out: `${r.stdout ?? ""}${r.stderr ?? ""}`.trim(), error: r.error };
 }
 
@@ -63,7 +64,7 @@ log(VERSION);
 const semver = (VERSION.match(/\d+\.\d+\.\d+/) ?? [""])[0];
 const MAJOR = Number((VERSION.match(/\d+/) ?? ["0"])[0]);
 log(MAJOR >= 2
-  ? "NOTE: OpenCode 2.x — the adapter must target @opencode/sdk / @opencode/client, not @opencode-ai/sdk v1."
+  ? "NOTE: OpenCode 2.x — the adapter targets @opencode/client (HTTP client for `opencode serve`), not @opencode-ai/sdk v1."
   : "NOTE: OpenCode 1.x — the adapter will target @opencode-ai/sdk pinned to this version.");
 
 section("opencode models");
@@ -106,7 +107,7 @@ if (SERVE) {
   const PORT = 4096;
   const env = { ...process.env, OPENCODE_SERVER_PASSWORD: process.env.OPENCODE_SERVER_PASSWORD || randomBytes(12).toString("hex") };
   const serveLog = [];
-  const child = spawn("opencode", ["serve", "--hostname", "127.0.0.1", "--port", String(PORT)], { shell: true, env, cwd: ROOT });
+  const child = spawn(`opencode serve --hostname 127.0.0.1 --port ${PORT}`, { shell: true, env, cwd: ROOT });
   child.stdout.on("data", (d) => serveLog.push(String(d)));
   child.stderr.on("data", (d) => serveLog.push(String(d)));
   const stopServe = () => {
@@ -127,11 +128,12 @@ if (SERVE) {
   log(`serve reachable on 127.0.0.1:${PORT}: ${up}`);
 
   if (up) {
-    const pkg = MAJOR >= 2 ? "@opencode/sdk" : `@opencode-ai/sdk@${semver}`;
+    // 2.x: @opencode/client is the HTTP client for `opencode serve` (@opencode/sdk is an in-process host).
+    const pkg = MAJOR >= 2 ? `@opencode/client@${semver}` : `@opencode-ai/sdk@${semver}`;
     log(`installing ${pkg} into .m0/ (not saved to package.json)`);
     let inst = run("npm", ["install", "--no-save", "--no-audit", "--no-fund", "--prefix", `"${M0}"`, pkg], { timeout: 300000 });
     if (inst.code !== 0) {
-      const fallback = MAJOR >= 2 ? "@opencode/sdk" : "@opencode-ai/sdk";
+      const fallback = MAJOR >= 2 ? "@opencode/client" : "@opencode-ai/sdk";
       log(`exact version not available; trying ${fallback}`);
       inst = run("npm", ["install", "--no-save", "--no-audit", "--no-fund", "--prefix", `"${M0}"`, fallback], { timeout: 300000 });
     }
@@ -141,7 +143,7 @@ if (SERVE) {
     const check = run("node", ["opencode-sdk-check.mjs"], {
       cwd: M0,
       timeout: 240000,
-      env: { ...env, OPENCODE_URL: `http://127.0.0.1:${PORT}`, M0_PROMPT: SMOKE ? "1" : "0" },
+      env: { ...env, OPENCODE_URL: `http://127.0.0.1:${PORT}`, M0_PROMPT: SMOKE ? "1" : "0", M0_DIRECTORY: ROOT },
     });
     log(redact(check.out));
   }

@@ -44,13 +44,30 @@ The report is written to `m0-opencode-report.txt` (git-ignored). **Read it befor
 
 ## Results
 
-_Not run yet._
+Run on the user's machine (Windows 11, Node v24.22.1) on 2026-11-03 with `--serve`, no smoke test.
 
 | Item | Value |
 |---|---|
-| OpenCode version (pinned) | — |
-| SDK package | — |
-| Models available | — |
-| Subscription / gateway | — |
-| Smoke test | — |
-| serve + SDK session | — |
+| OpenCode version | **2.2.0** (pin: `@opencode/client@2.2.0`) |
+| Client package | `@opencode/client`: `OpenCode.make({ baseUrl, headers })`. Note: in 2.x `@opencode/sdk` is an **in-process host**, not an HTTP client, so we use `@opencode/client` to talk to `opencode serve`, as the brief describes. |
+| Providers | `opencode` ("Personal / OpenCode", Zen gateway with an org header), `opencode-go` (**OpenCode Go** subscription), `openrouter` (API key in auth.json) |
+| Models | ~30 `opencode-go/*`, ~40 `opencode/*` (some disabled in config), many `openrouter/*` |
+| `OPENCODE_API_KEY` | not set |
+| Tier detection rule | `opencode-go` provider present → Go subscription; `opencode` provider → Zen (pay per use); `openrouter` → OpenRouter key. Detected at runtime, never hardcoded. |
+| User permission config | Global allow, with ask on `.env` reads and external dirs; denies `git push`, `git reset --hard`, `rm -rf` etc. The adapter must respect these, and `permission.asked` events should map to our *waiting-for-human* status. |
+| `opencode serve` | reachable on 127.0.0.1:4096 ✅ |
+| SDK session check | ⏸ The first run used the wrong package (`@opencode/sdk`). The check is fixed to use `@opencode/client`; **re-run needed**. |
+
+### 2.x client surface (read from `@opencode/client@2.2.0` type definitions)
+- `session.create({ title, model: { id, providerID }, location: { directory } })`, `session.prompt({ sessionID, text })`, `session.wait`, `session.interrupt` (→ our cancel), `session.context`, `session.remove`
+- `model.list`, `provider.list`, `agent.list`, `server.info`
+- `event.subscribe({ types })` → an async iterable of typed events, including:
+  - `session.execution.started / succeeded / failed / interrupted`
+  - `session.text.delta`, `session.reasoning.delta`
+  - `session.tool.called / success / failed`
+  - `session.usage.updated`
+  - `permission.asked / replied`
+  - `session.status`, `session.idle`
+
+  These map directly onto our normalized `RuntimeEvent`s.
+- Still unknown until the re-run: the exact `OPENCODE_SERVER_PASSWORD` auth header format, and the payload shape of `session.usage.updated` (cost / tokens).
