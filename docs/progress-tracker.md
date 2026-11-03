@@ -4,11 +4,11 @@ Update this file whenever the current phase, active feature, or implementation s
 
 ## Current Phase
 
-- **Autonomous session (user asleep), working items 1→5:** 1 pixel office ✅ · 2 shared agent list ✅ · 3 skills library ✅ · 4 step-list workflows ✅ · 5 OpenCode 2.2.0 adapter (mocks only).
+- **Autonomous session (user asleep): items 1–5 all done ✅.** 1 pixel office · 2 shared agent list · 3 skills library · 4 step-list workflows · 5 OpenCode 2.2.0 adapter (mocks only).
 
 ## Current Goal
 
-- Item 5: OpenCode 2.2.0 runtime adapter on `@opencode/client@2.2.0`, tested with mocks only (no real runs, no spend).
+- Waiting for the user's review. Next candidates: the first real OpenCode run (needs the user's go-ahead: it spends credit), the permission-reply contract addition, then M3 (Claude Code adapter).
 
 ## Completed
 
@@ -56,6 +56,12 @@ Update this file whenever the current phase, active feature, or implementation s
   - the server regenerates the graph from the steps on every save and import
   - tested end to end in the browser: review loop sent work back once → approval → parallel pair → done
 
+- **Item 5 — OpenCode 2.2.0 adapter (2026-11-03):**
+  - `packages/adapter-opencode` on `@opencode/client@2.2.0`, mapping sessions, events, cost and cancel to the adapter contract
+  - opt-in registration (`AGENT_TOWN_OPENCODE_URL`, localhost only)
+  - 8 adapter tests against a fake 2.2.0 server, plus a compile-time check against the real client package
+  - no real runs, no spend
+
 ## In Progress
 
 - None. Waiting on the user (see Next Up).
@@ -68,6 +74,8 @@ Update this file whenever the current phase, active feature, or implementation s
 
 ## Open Questions
 
+- **First real OpenCode run:** OK to try one small run on a cheap or free model (e.g. a `-free` model) with a low cost cap? Steps are in milestone-0-opencode.md.
+- **Permission answers:** OK to add `respond(sessionId, requestId, approved, note)` to the adapter contract, so OpenCode permission questions can be answered in Agent Town's approval banner?
 - **GitHub skill install wasn't tried against real GitHub**: this container's network returns 403 for api.github.com. It's covered by tests against a fake GitHub API. Please try one real install locally (e.g. a public skill folder URL).
 - Re-run `npm run verify:opencode -- --serve` to confirm the `@opencode/client` session check, the auth header for `OPENCODE_SERVER_PASSWORD`, and the `session.usage.updated` payload (cost / tokens).
 - Claude Code adapter (M3): Agent SDK (TypeScript) or headless `claude` CLI?

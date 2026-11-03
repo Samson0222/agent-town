@@ -51,7 +51,11 @@ async function v2(mod) {
   let eventsOk = false;
   const sub = (async () => {
     try {
-      const stream = await client.event.subscribe({}, { signal: ac.signal });
+      // 2.2.0 signature: one options object with types + signal (verified against @opencode/client types).
+      const stream = client.event.subscribe({
+        types: ["session.execution.started", "session.execution.succeeded", "session.execution.failed", "session.text.delta", "session.tool.called", "session.usage.updated", "permission.asked"],
+        signal: ac.signal,
+      });
       eventsOk = true;
       for await (const ev of stream) {
         const t = ev?.type ?? ev?.data?.type ?? "unknown";

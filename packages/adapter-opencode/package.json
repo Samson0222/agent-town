@@ -1,0 +1,19 @@
+{
+  "name": "@agent-town/adapter-opencode",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Agent Town runtime adapter for OpenCode 2.2.0 (`opencode serve`), using @opencode/client pinned to the user's verified version.",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@agent-town/core": "0.3.0",
+    "@opencode/client": "2.2.0"
+  },
+  "devDependencies": {
+    "vitest": "5.1.0"
+  }
+}

@@ -34,6 +34,8 @@ Model providers (Layer 2) sit *behind* runtimes. An agent names a model id and a
 | `apps/server` | Store (`node:sqlite`), disk vault, REST + SSE. Localhost only. |
 | `apps/web` | Team builder (+ Agent Factory import), workflow builder (React Flow), run view (office, graph, board, activity, steps, cost, outputs, replay). |
 | `packages/office-renderer` | Vendored [rafapetter/agent-town](https://github.com/rafapetter/agent-town) pixel renderer (MIT) plus documented patches; wrapped by `apps/web/components/Office.tsx`. |
+| `packages/adapter-opencode` | OpenCode 2.2.0 runtime adapter (`@opencode/client@2.2.0`); opt-in via `AGENT_TOWN_OPENCODE_URL`. |
+| `packages/pixel-office` | pixel-agents office engine + art (MIT) with Agent Town's controller, loader and desk planner. |
 | `packages/core/src/importers` | Agent Factory role-template importer (our code; format only). |
 
 `@agent-town/core` (root export) is browser-safe and is what the web app imports. `@agent-town/core/engine` is used by the server.

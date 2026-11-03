@@ -484,6 +484,7 @@ export class Run {
         systemPrompt,
         model: modelId,
         allowedTools: sessionTools,
+        permissions: agent.permissions,
         skills: nativeSkills ? skills.map((s) => ({ id: s.id, name: s.name, description: s.description, content: s.content, files: s.files })) : undefined,
       });
       const key = `${node.id}:${sessionId}`;

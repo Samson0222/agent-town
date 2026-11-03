@@ -77,3 +77,43 @@ Run on the user's machine (Windows 11, Node v24.22.1) on 2026-11-03 with `--serv
 - `session.create` returns `id, projectID, cost, tokens, time, title, location`, so **the session carries running cost and tokens**. The adapter can report cost from it (`costReporting` capability).
 - `agent.list` exposes OpenCode's own agents (e.g. `build`) with the user's permission rules (ask on `.env`, deny `git push` etc.). Agent Town sessions should run as `build` unless configured otherwise, and `permission.asked` → waiting-for-human.
 - Report hygiene: the org id (`org_…`) appeared unmasked. It is not a secret, but it is now masked too.
+
+## The OpenCode adapter (Milestone 2, built 2026-11-03, mocks only)
+
+`packages/adapter-opencode`: built on `@opencode/client@2.2.0` (pinned) against its type definitions and the findings above. **It has not been run against a real OpenCode server yet**: no real runs and no spend so far.
+
+**It's off by default.** It's only registered when the server starts with the variables below. When you're ready for a first real run, in PowerShell:
+
+```powershell
+# terminal 1 — OpenCode, localhost only, with a password
+$env:OPENCODE_SERVER_PASSWORD = "<pick-a-password>"
+opencode serve --hostname 127.0.0.1 --port 4096
+```
+
+```powershell
+# terminal 2 — Agent Town with the OpenCode runtime switched on
+$env:OPENCODE_SERVER_PASSWORD = "<same-password>"
+$env:AGENT_TOWN_OPENCODE_URL = "http://127.0.0.1:4096"
+$env:AGENT_TOWN_WORKDIR = "C:\path\to\a\scratch\project"   # folder the agents may edit
+npm run dev
+```
+
+Then pick **OpenCode** as the runtime for one agent (or a team default) and a model such as `opencode-go/<model>`. Keep the team cost cap low for the first run.
+
+**How it works**
+
+| Agent Town | OpenCode 2.2.0 |
+|---|---|
+| startSession | `session.create({ title, agent: "build", model: {providerID, id}, location: {directory}, metadata, permissions })`, plus `shell: deny` when the agent has no shell permission |
+| sendPrompt | `session.prompt({ sessionID, text })`. The agent's instructions (and skills) are placed at the top of the text. |
+| streamEvents | one `event.subscribe({ types, signal })` stream for all sessions, routed by `sessionID` |
+| cancel | `session.interrupt` |
+| getCost | `session.get` → `cost`, `tokens` |
+| listModels | `model.list` → `provider/model` (enabled, not deprecated) |
+
+**Verified at compile time:** `test/client-compat.check.ts` type-checks the real `@opencode/client` against every call the adapter makes. That's how the `event.subscribe` signature difference (one options object with `signal`) was caught and fixed, in both the adapter and the M0 check script.
+
+**Known limitations**
+- An OpenCode `permission.asked` shows the agent as "waiting for you", with a message to answer it **in OpenCode**. Answering from Agent Town needs a small contract addition (`respond(...)` → `permission.reply`). It's proposed in discussion.md, not built.
+- Agent Town skills go in the prompt text, not OpenCode's native `skills` (which refers to skills installed in OpenCode).
+- `opencode serve` is not started by Agent Town; you start it yourself (above).

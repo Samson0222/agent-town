@@ -30,6 +30,7 @@ import {
 } from "@agent-town/core/engine";
 import { Store } from "./store";
 import { DiskVault } from "./vault";
+import { OpenCodeAdapter, type OpenCodeAdapterOptions } from "@agent-town/adapter-opencode";
 import { applyAssignment, fetchGithubSkill, isAssigned, skillFromFiles, slugify } from "./skills";
 
 export interface AppOptions {
@@ -38,6 +39,8 @@ export interface AppOptions {
   /** Delay between mock runtime events (ms). */
   mockStepMs?: number;
   seedTemplates?: boolean;
+  /** Register the OpenCode runtime (only when the user configured it). */
+  opencode?: OpenCodeAdapterOptions;
 }
 
 class HttpError extends Error {
@@ -57,6 +60,8 @@ export function createApp(opts: AppOptions) {
 
   // Layer 1: runtime adapters. Milestone 2 registers OpenCode here; M3 Claude Code.
   const adapters = new RuntimeAdapterRegistry().register(new MockAdapter({ stepMs: opts.mockStepMs ?? 350 }));
+  // OpenCode is opt-in: registered only when its URL is configured (it spends real credit).
+  if (opts.opencode) adapters.register(new OpenCodeAdapter(opts.opencode));
   // Layer 3: connectors. Milestone 2 adds generic MCP + self-hosted OpenConnector here.
   const connectors = new ConnectorRegistry()
     .register(new VaultConnector(vault))

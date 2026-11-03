@@ -114,15 +114,19 @@ function NewAgent() {
               </button>
             );
           })}
+          {!(["opencode", "claude-code"].every((id) => runtimes.some((r) => r.id === id))) && (
           <div className="panel flex items-center gap-4 p-4 opacity-60">
             <span className="flex h-10 w-10 items-center justify-center rounded-xl" style={{ background: "var(--bg-soft)" }}>
               <Lock size={18} />
             </span>
             <div className="flex-1">
-              <div className="font-semibold">OpenCode · Claude Code</div>
-              <div className="muted text-sm">Real runtimes appear here once they are switched on (no real runs during the prototype).</div>
+              <div className="font-semibold">{["OpenCode", "Claude Code"].filter((n) => !runtimes.some((r) => r.name === n)).join(" · ")}</div>
+              <div className="muted text-sm">
+                Not switched on. OpenCode turns on when the server starts with AGENT_TOWN_OPENCODE_URL (see docs/milestone-0-opencode.md); Claude Code comes in Milestone 3.
+              </div>
             </div>
           </div>
+          )}
           <div className="flex justify-end pt-2">
             <button className="btn btn-primary" onClick={() => setStep(2)} disabled={!runtimes.length}>
               Continue <ArrowRight size={16} />

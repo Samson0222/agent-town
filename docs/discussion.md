@@ -71,6 +71,18 @@ User asks: simpler agent and workflow creation like Multica; agents designed lik
 - **"Edit as graph (advanced)"** keeps the graph generated from the current (possibly unsaved) steps and drops the step list, after a confirm. There is no automatic graph → steps conversion (most graphs can't be expressed as a list).
 - **New workflows default to step-list mode** (one step for the team's first member). `mode: "graph"` on the API still creates a graph workflow. Starter templates stay as graphs (they use tool calls).
 
+### Decisions made while the user was away (item 5)
+- **Adapter package:** `packages/adapter-opencode`, a new adapter file as the brief requires. Core only gained *optional, additive* fields: `SessionOptions.permissions`, `SessionOptions.skills`, and the `skills` capability. No engine rewrite.
+- **Client:** `@opencode/client@2.2.0` (the HTTP client for `opencode serve`), pinned. The adapter depends on a small `OpenCodeClientLike` interface so tests can use a fake, and a compile-time check proves the real client satisfies it.
+- **Caught by that check:** the real `event.subscribe` takes **one** options object (`{ types, signal }`) and returns the stream directly. My first version (and the M0 check script) passed `signal` as a second argument, so a real stream would never have been cancelled. Both are fixed.
+- **Instructions** go at the top of the prompt text (robust). OpenCode's instruction-entry API (`session.instructions.entry.put`) has unverified semantics, so it isn't used yet.
+- **Skills** go in the prompt, not OpenCode's native `skills` field, which refers to skills installed in OpenCode.
+- **Permissions:** an agent without shell permission gets a per-session OpenCode rule `shell * deny`. Your global OpenCode rules still apply on top.
+- **Cost:** `session.usage.updated` carries cumulative cost and tokens, which are converted to deltas. Reasoning tokens count as output.
+- **Sessions are kept** in OpenCode after each step (`keepSessions` defaults to true), so you can inspect them there.
+- **Opt-in registration:** only when `AGENT_TOWN_OPENCODE_URL` points at localhost. `OPENCODE_SERVER_PASSWORD` is sent as Basic auth (`opencode:<pw>`, which worked in your M0 run) and never logged.
+- **Open limitation:** `permission.asked` only shows "waiting for you, answer in OpenCode". Proposed contract addition: `RuntimeEvent.waiting.requestId` plus an optional `adapter.respond(sessionId, requestId, approved, note)` mapped to `permission.reply`, so Agent Town's approval banner can answer it. **Not built; needs your OK.**
+
 ### Fixes
 - Run page: the technical log's long lines pushed the Steps panel under the sidebar. Columns now use `minmax(0,…)`, long tokens wrap, and Activity / Steps stack below 2xl width.
 - The hydration error appeared again, after adding the Skills link to the sidebar: stale dev-server state, gone after a clean restart. **Rule:** restart the dev server after sidebar edits before browser checks.

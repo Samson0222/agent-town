@@ -68,6 +68,8 @@ export interface SessionOptions {
   allowedTools: string[];
   /** Working directory for runtimes that edit files. */
   workdir?: string;
+  /** The agent's permissions, for runtimes that can enforce them (e.g. deny shell). */
+  permissions?: { shell: boolean; autoApproveWrite: boolean };
   /** Enabled skills, passed only to runtimes with the `skills` capability. */
   skills?: Array<{ id: string; name: string; description: string; content: string; files: Array<{ path: string; content: string }> }>;
 }
