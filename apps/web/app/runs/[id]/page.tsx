@@ -1,11 +1,15 @@
 "use client";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import type { EnvironmentId } from "@agent-town/office-renderer";
+import { ArrowLeft, Building2, Columns3, History, Network, Pause, Play, Radio, Square } from "lucide-react";
 import { pendingApprovals } from "@agent-town/core";
 import { FlowGraph } from "@/components/FlowGraph";
-import { Office } from "@/components/Office";
-import { AgentDetail, Approvals, Board, Controls, CostPanel, EventLog, Files } from "@/components/RunPanels";
+import { ENVIRONMENTS, OFFICE_ASPECT, Office, officeSizeFor } from "@/components/Office";
+import { ActivityFeed, AgentDrawer, ApprovalBanner, Board, CostMeter, Outputs, StepsPanel, TeamRoster } from "@/components/RunPanels";
+import { RunStatusChip } from "@/components/ui";
+import { api, errorText } from "@/lib/api";
 import { useRun } from "@/lib/useRun";
 
 type View = "office" | "graph" | "board";
@@ -14,149 +18,204 @@ export default function RunPage() {
   const { id } = useParams<{ id: string }>();
   const { detail, events, visibleEvents, state, connected, error, replaySeq, setReplaySeq } = useRun(id);
   const [view, setView] = useState<View>("office");
-  const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string | null>(null);
+  const [ctrlErr, setCtrlErr] = useState<string | null>(null);
+  const [env, setEnv] = useState<EnvironmentId>("town");
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("agent-town:env") as EnvironmentId | null;
+      if (saved && ENVIRONMENTS.some((e) => e.id === saved)) setEnv(saved);
+    } catch {}
+  }, []);
+  const chooseEnv = (e: EnvironmentId) => {
+    setEnv(e);
+    try {
+      localStorage.setItem("agent-town:env", e);
+    } catch {}
+  };
 
   const agents = useMemo(() => state.agentOrder.map((a) => state.agents[a]!).filter(Boolean), [state]);
   const names = useMemo(() => Object.fromEntries(agents.map((a) => [a.id, a.name])), [agents]);
+  const colors = useMemo(() => Object.fromEntries(agents.map((a) => [a.id, a.color])), [agents]);
+  const labels = useMemo(() => Object.fromEntries((detail?.run.workflow.nodes ?? []).map((n) => [n.id, n.label || n.id])), [detail]);
 
-  if (error) return <p className="text-red-600">{error}</p>;
+  if (error) return <p style={{ color: "var(--bad)" }}>{error}</p>;
   if (!detail) return <p className="muted">Loading run…</p>;
 
   const { workflow, team } = detail.run;
   const lastSeq = events.at(-1)?.seq ?? 0;
   const replaying = replaySeq != null;
   const terminal = ["completed", "failed", "stopped"].includes(state.status);
-  const liveOnServer = !terminal && (detail.live || events.length > 0);
+  const live = !terminal && !replaying;
+  const goal = Object.values(state.inputs)[0] ?? "";
+  const workSteps = workflow.nodes.filter((n) => n.type === "agentTask" || n.type === "merge" || n.type === "toolCall");
+  const doneSteps = workSteps.filter((n) => state.nodes[n.id]?.status === "done").length;
+  const progress = workSteps.length ? Math.round((doneSteps / workSteps.length) * 100) : 0;
   const waiting = pendingApprovals(state).length;
-  const agent = selectedAgent ? state.agents[selectedAgent] : undefined;
+  const agent = selected ? state.agents[selected] : undefined;
+
+  const control = async (action: "pause" | "resume" | "stop") => {
+    if (action === "stop" && !confirm("Stop this run? Running steps are cancelled.")) return;
+    setCtrlErr(null);
+    try {
+      await api(`/api/runs/${id}/${action}`, { json: {} });
+    } catch (e) {
+      setCtrlErr(errorText(e));
+    }
+  };
 
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-3">
-        <Link href="/" className="muted text-sm">
-          ← Runs
-        </Link>
-        <h1 className="text-lg font-semibold">{state.workflowName ?? workflow.name}</h1>
-        <StatusPill status={state.status} />
-        {!terminal && (
-          <span className="muted text-xs" title="Live event stream">
-            {connected ? "● live" : "○ reconnecting…"}
-          </span>
-        )}
-        {waiting > 0 && <span className="rounded bg-amber-500 px-2 py-0.5 text-xs text-white">✋ {waiting} waiting for you</span>}
-        <span className="muted ml-auto font-mono text-xs">{id.slice(0, 8)}</span>
-      </div>
-      {state.error && <p className="text-sm text-red-600">{state.error}</p>}
-      {state.endReason && <p className="text-sm text-amber-600">{state.endReason}</p>}
-      {state.warnings.length > 0 && (
-        <details className="text-xs text-amber-600">
-          <summary className="cursor-pointer">{state.warnings.length} preflight notes</summary>
-          <ul className="mt-1 list-disc pl-5">
-            {state.warnings.map((w, i) => (
-              <li key={i}>{w}</li>
-            ))}
-          </ul>
-        </details>
-      )}
-
-      <div className="grid gap-3 xl:grid-cols-[1fr_380px]">
-        <div className="space-y-3">
-          <div className="panel p-3">
-            <div className="mb-2 flex items-center gap-1">
-              {(["office", "graph", "board"] as View[]).map((v) => (
-                <button key={v} className={`btn btn-sm ${view === v ? "btn-primary" : ""}`} onClick={() => setView(v)}>
-                  {v === "office" ? "🏢 Office" : v === "graph" ? "🕸 Graph" : "📋 Board"}
-                </button>
-              ))}
-              <div className="ml-auto flex items-center gap-2 text-xs">
-                <span className="muted">Replay</span>
-                <input
-                  type="range"
-                  min={1}
-                  max={Math.max(1, lastSeq)}
-                  value={replaySeq ?? lastSeq}
-                  onChange={(e) => {
-                    const v = Number(e.target.value);
-                    setReplaySeq(v >= lastSeq ? null : v);
-                  }}
-                />
-                <span className="w-16 font-mono">
-                  {replaySeq ?? lastSeq}/{lastSeq}
+    <div className="space-y-5">
+      {/* Header */}
+      <header className="panel p-5">
+        <div className="flex flex-wrap items-start gap-4">
+          <Link href="/runs" className="btn btn-ghost btn-icon" aria-label="Back to runs">
+            <ArrowLeft size={18} />
+          </Link>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-3">
+              <h1 className="text-xl font-bold tracking-tight">{state.workflowName ?? workflow.name}</h1>
+              <RunStatusChip status={state.status} />
+              {!terminal && !replaying && (
+                <span className="muted flex items-center gap-1 text-xs">
+                  <Radio size={12} className={connected ? "pulse" : ""} style={{ color: connected ? "var(--ok)" : "var(--muted)" }} />
+                  {connected ? "Live" : "Reconnecting…"}
                 </span>
-                {replaying && (
-                  <button className="btn btn-sm" onClick={() => setReplaySeq(null)}>
-                    Live
-                  </button>
-                )}
-              </div>
+              )}
+              {replaying && <span className="chip" style={{ background: "var(--accent-soft)", color: "var(--accent)" }}>Replay</span>}
             </div>
-            {view === "office" && (
-              <Office agents={agents} events={visibleEvents} runStatus={state.status} selectedAgent={selectedAgent} onSelectAgent={setSelectedAgent} live={!replaying} />
-            )}
-            {view === "graph" && <FlowGraph workflow={workflow} team={team} statuses={state.nodes} height={460} />}
-            {view === "board" && <Board state={state} names={names} onSelect={(a) => a && setSelectedAgent(a)} />}
-            <div className="mt-2 flex flex-wrap gap-2">
-              {agents.map((a) => (
-                <button
-                  key={a.id}
-                  onClick={() => setSelectedAgent(a.id === selectedAgent ? null : a.id)}
-                  className="flex items-center gap-1 rounded-full px-2 py-0.5 text-xs"
-                  style={{ border: `1px solid ${a.id === selectedAgent ? "var(--accent)" : "var(--line)"}` }}
-                >
-                  <span className="h-2 w-2 rounded-full" style={{ background: a.color }} />
-                  {a.name}: <b>{a.status}</b>
-                </button>
-              ))}
+            {goal && <p className="ink-2 mt-1 line-clamp-2 text-sm">“{goal}”</p>}
+            <div className="mt-3 flex items-center gap-3">
+              <div className="h-2 max-w-md flex-1 overflow-hidden rounded-full" style={{ background: "var(--bg-soft)" }}>
+                <div className="h-2 rounded-full transition-all" style={{ width: `${progress}%`, background: "linear-gradient(90deg, var(--accent), var(--accent-2))" }} />
+              </div>
+              <span className="muted text-xs">
+                {doneSteps} of {workSteps.length} steps
+              </span>
             </div>
           </div>
-
-          <div className="panel p-3">
-            {agent ? (
-              <>
-                <div className="mb-2 flex justify-end">
-                  <button className="btn btn-sm" onClick={() => setSelectedAgent(null)}>
-                    Show full log
-                  </button>
-                </div>
-                <AgentDetail agent={agent} state={state} events={visibleEvents} names={names} />
-              </>
+          <div className="flex items-center gap-2">
+            {state.status === "paused" ? (
+              <button className="btn btn-primary" disabled={!live} onClick={() => control("resume")}>
+                <Play size={16} /> Resume
+              </button>
             ) : (
-              <>
-                <h2 className="mb-2 font-semibold">Messages, tools &amp; logs</h2>
-                <EventLog events={visibleEvents} names={names} />
-              </>
+              <button className="btn" disabled={!live || state.status !== "running"} onClick={() => control("pause")}>
+                <Pause size={16} /> Pause
+              </button>
             )}
+            <button className="btn btn-danger" disabled={!live} onClick={() => control("stop")}>
+              <Square size={15} /> Stop
+            </button>
+          </div>
+        </div>
+        {ctrlErr && <p className="mt-2 text-sm" style={{ color: "var(--bad)" }}>{ctrlErr}</p>}
+        {state.error && <p className="mt-3 rounded-lg p-2 text-sm" style={{ background: "var(--bad-soft)", color: "var(--bad)" }}>{state.error}</p>}
+        {state.endReason && <p className="mt-3 rounded-lg p-2 text-sm" style={{ background: "var(--warn-soft)", color: "var(--warn)" }}>{state.endReason}</p>}
+      </header>
+
+      <ApprovalBanner runId={id} state={state} names={names} colors={colors} disabled={!live} />
+
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
+        <div className="min-w-0 space-y-5">
+          {/* Main stage */}
+          <section className="panel overflow-hidden">
+            <div className="flex flex-wrap items-center gap-3 border-b px-4 py-3" style={{ borderColor: "var(--line)" }}>
+              <div className="tabs">
+                <button className="tab" data-active={view === "office"} onClick={() => setView("office")}>
+                  <Building2 size={15} /> Office
+                </button>
+                <button className="tab" data-active={view === "graph"} onClick={() => setView("graph")}>
+                  <Network size={15} /> Workflow
+                </button>
+                <button className="tab" data-active={view === "board"} onClick={() => setView("board")}>
+                  <Columns3 size={15} /> Board
+                </button>
+              </div>
+              {waiting > 0 && (
+                <span className="chip" style={{ background: "var(--warn-soft)", color: "var(--warn)" }}>
+                  <span className="chip-dot pulse" /> {waiting} waiting for you
+                </span>
+              )}
+              <span className="muted ml-auto hidden text-xs lg:block">Click a person to see their work</span>
+              {view === "office" && (
+                <select className="input !h-8 !w-auto !py-0 text-xs" value={env} onChange={(e) => chooseEnv(e.target.value as EnvironmentId)} aria-label="Scene">
+                  {ENVIRONMENTS.map((e) => (
+                    <option key={e.id} value={e.id}>
+                      Scene: {e.label}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+            <div style={view === "office" ? { aspectRatio: `${OFFICE_ASPECT[officeSizeFor(agents.length)]}`, maxHeight: 640 } : { height: 560 }} className={view === "office" ? "" : "p-3"}>
+              {view === "office" && <Office state={state} agents={agents} environment={env} onAgentClick={setSelected} />}
+              {view === "graph" && <FlowGraph workflow={workflow} team={team} statuses={state.nodes} height="100%" bare />}
+              {view === "board" && <Board state={state} names={names} colors={colors} onSelect={(a) => a && setSelected(a)} />}
+            </div>
+            {/* Replay */}
+            <div className="flex items-center gap-3 border-t px-4 py-2.5 text-xs" style={{ borderColor: "var(--line)" }}>
+              <History size={14} className="muted" />
+              <span className="muted">Replay</span>
+              <input
+                type="range"
+                className="flex-1 accent-[var(--accent)]"
+                min={1}
+                max={Math.max(1, lastSeq)}
+                value={replaySeq ?? lastSeq}
+                onChange={(e) => {
+                  const v = Number(e.target.value);
+                  setReplaySeq(v >= lastSeq ? null : v);
+                }}
+              />
+              <span className="muted w-20 text-right font-mono">
+                {replaySeq ?? lastSeq} / {lastSeq}
+              </span>
+              {replaying && (
+                <button className="btn btn-sm" onClick={() => setReplaySeq(null)}>
+                  Back to live
+                </button>
+              )}
+            </div>
+          </section>
+
+          <div className="grid gap-5 lg:grid-cols-[3fr_2fr]">
+            <section className="panel p-5">
+              <ActivityFeed events={visibleEvents} names={names} labels={labels} colors={colors} />
+            </section>
+            <section className="panel p-5">
+              <StepsPanel runId={id} state={state} workflow={workflow} team={team} live={live} />
+            </section>
           </div>
         </div>
 
-        <aside className="space-y-3">
-          <section className="panel p-3">
-            <h2 className="mb-2 font-semibold">Waiting for you</h2>
-            <Approvals runId={id} state={state} names={names} disabled={replaying || terminal} />
+        <aside className="space-y-5">
+          <section className="panel p-5">
+            <div className="section-title mb-3">Team</div>
+            <TeamRoster agents={agents} state={state} labels={labels} onSelect={setSelected} selected={selected} />
           </section>
-          <section className="panel p-3">
-            <h2 className="mb-2 font-semibold">Controls</h2>
-            <Controls runId={id} state={state} workflow={workflow} team={team} live={liveOnServer && !replaying} />
+          <section className="panel p-5">
+            <div className="section-title mb-3">Outputs</div>
+            <Outputs runId={id} files={state.files} />
           </section>
-          <section className="panel p-3">
-            <h2 className="mb-2 font-semibold">Cost</h2>
-            <CostPanel state={state} names={names} />
+          <section className="panel p-5">
+            <div className="section-title mb-3">Cost</div>
+            <CostMeter state={state} names={names} />
           </section>
-          <section className="panel p-3">
-            <h2 className="mb-2 font-semibold">Outputs</h2>
-            <Files runId={id} files={state.files} />
-          </section>
+          {state.warnings.length > 0 && (
+            <details className="panel p-4 text-xs">
+              <summary className="muted cursor-pointer">{state.warnings.length} setup notes from the pre-run check</summary>
+              <ul className="mt-2 space-y-1" style={{ color: "var(--warn)" }}>
+                {state.warnings.map((w, i) => (
+                  <li key={i}>• {w}</li>
+                ))}
+              </ul>
+            </details>
+          )}
         </aside>
       </div>
-    </div>
-  );
-}
 
-function StatusPill({ status }: { status: string }) {
-  const color: Record<string, string> = { running: "#2563eb", paused: "#d97706", completed: "#16a34a", failed: "#dc2626", stopped: "#6b7280", pending: "#6b7280" };
-  return (
-    <span className="rounded px-2 py-0.5 text-xs text-white" style={{ background: color[status] ?? "#6b7280" }}>
-      {status}
-    </span>
+      {agent && <AgentDrawer agent={agent} state={state} events={visibleEvents} names={names} labels={labels} onClose={() => setSelected(null)} />}
+    </div>
   );
 }

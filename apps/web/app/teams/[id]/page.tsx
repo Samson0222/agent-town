@@ -237,7 +237,7 @@ export default function TeamEditor() {
 
             <div className="mt-3 flex flex-wrap items-end gap-4 md:col-span-3">
               <label className="field">
-                Colour
+                Colour (outfit in the office)
                 <input type="color" className="block h-8 w-16" value={agent.appearance.color} onChange={(e) => setAgent({ appearance: { ...agent.appearance, color: e.target.value } })} />
               </label>
               <label className="field">
@@ -249,7 +249,7 @@ export default function TeamEditor() {
                 </select>
               </label>
               <label className="field">
-                Desk X
+                Desk X (hint)
                 <input
                   className="input w-20"
                   type="number"
@@ -260,7 +260,7 @@ export default function TeamEditor() {
                 />
               </label>
               <label className="field">
-                Desk Y
+                Desk Y (hint)
                 <input
                   className="input w-20"
                   type="number"

@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const config: NextConfig = {
-  transpilePackages: ["@agent-town/core"],
+  transpilePackages: ["@agent-town/core", "@agent-town/office-renderer"],
   reactStrictMode: true,
 };
 

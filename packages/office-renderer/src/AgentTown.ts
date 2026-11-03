@@ -141,6 +141,7 @@ export class AgentTown {
 
   constructor(config: TownConfig) {
     this.container = config.container;
+    if (config.settings) Object.assign(this.settings, config.settings);
     this.scale = config.scale ?? 3;
     this.onAgentClickCb = config.onAgentClick ?? null;
     this.currentTheme = config.theme ?? 'hybrid';
@@ -1058,6 +1059,9 @@ export class AgentTown {
         }
       }
 
+      // Everything below is ambient life, not driven by caller updates.
+      if (this.settings.ambient === false) continue;
+
       // Periodic roaming — idle agents move much more frequently
       if (!agent.isWalking && agent.portalState === 'none' && agent.isAtDesk && agent.socialAction === 'none') {
         agent.movementTimer -= dt;
@@ -1376,7 +1380,7 @@ export class AgentTown {
         });
       }
 
-      if (hasOverflow) {
+      if (hasOverflow && positions.length > 0) {
         const lastPos = positions[positions.length - 1];
         overflows.push({
           roomId: roomIdx,

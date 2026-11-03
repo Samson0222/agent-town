@@ -149,6 +149,8 @@ export interface TownConfig {
   stages?: StageConfig[];
   /** Room layout mode: 'environment' uses standard rooms, 'kanban' maps rooms to stages. */
   roomMode?: RoomMode;
+  /** Initial settings (e.g. { ambient: false }). */
+  settings?: Partial<TownSettings>;
 }
 
 export interface Tile { type: TileType; walkable: boolean }
@@ -296,6 +298,12 @@ export interface ReviewItem {
 export interface TownSettings {
   particleDensity: 'low' | 'medium' | 'high';
   animationSpeed: number;
+  /**
+   * Ambient life: idle roaming, coffee breaks, chats, high-fives, stretching,
+   * random idle speech bubbles and random portal jumps. Default true (upstream behaviour).
+   * Set false when every visual change must be driven by real events.
+   */
+  ambient?: boolean;
 }
 
 export interface Workspace {

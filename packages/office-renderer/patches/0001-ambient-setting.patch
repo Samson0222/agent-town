@@ -1,0 +1,48 @@
+diff --git a/src/AgentTown.ts b/src/AgentTown.ts
+index 182a9e1..56b7542 100644
+--- a/src/AgentTown.ts
++++ b/src/AgentTown.ts
+@@ -141,6 +141,7 @@ export class AgentTown {
+ 
+   constructor(config: TownConfig) {
+     this.container = config.container;
++    if (config.settings) Object.assign(this.settings, config.settings);
+     this.scale = config.scale ?? 3;
+     this.onAgentClickCb = config.onAgentClick ?? null;
+     this.currentTheme = config.theme ?? 'hybrid';
+@@ -1058,6 +1059,9 @@ export class AgentTown {
+         }
+       }
+ 
++      // Everything below is ambient life, not driven by caller updates.
++      if (this.settings.ambient === false) continue;
++
+       // Periodic roaming — idle agents move much more frequently
+       if (!agent.isWalking && agent.portalState === 'none' && agent.isAtDesk && agent.socialAction === 'none') {
+         agent.movementTimer -= dt;
+diff --git a/src/types.ts b/src/types.ts
+index 70aaca9..1b216d3 100644
+--- a/src/types.ts
++++ b/src/types.ts
+@@ -149,6 +149,8 @@ export interface TownConfig {
+   stages?: StageConfig[];
+   /** Room layout mode: 'environment' uses standard rooms, 'kanban' maps rooms to stages. */
+   roomMode?: RoomMode;
++  /** Initial settings (e.g. { ambient: false }). */
++  settings?: Partial<TownSettings>;
+ }
+ 
+ export interface Tile { type: TileType; walkable: boolean }
+@@ -296,6 +298,12 @@ export interface ReviewItem {
+ export interface TownSettings {
+   particleDensity: 'low' | 'medium' | 'high';
+   animationSpeed: number;
++  /**
++   * Ambient life: idle roaming, coffee breaks, chats, high-fives, stretching,
++   * random idle speech bubbles and random portal jumps. Default true (upstream behaviour).
++   * Set false when every visual change must be driven by real events.
++   */
++  ambient?: boolean;
+ }
+ 
+ export interface Workspace {

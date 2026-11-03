@@ -17,14 +17,14 @@ import {
 import { useMemo } from "react";
 import type { NodeRunStatus, Team, Workflow, WorkflowEdge, WorkflowNode } from "@agent-town/core";
 
-export const NODE_META: Record<WorkflowNode["type"], { icon: string; name: string; color: string }> = {
-  agentTask: { icon: "🧑‍💼", name: "Agent Task", color: "#4f86f7" },
-  parallel: { icon: "⑂", name: "Parallel fan-out", color: "#0ea5e9" },
-  branch: { icon: "◇", name: "Branch / Condition", color: "#a855f7" },
-  toolCall: { icon: "🔧", name: "Tool Call", color: "#64748b" },
-  humanApproval: { icon: "✋", name: "Human Approval", color: "#d97706" },
-  merge: { icon: "⨁", name: "Merge / Synthesis", color: "#14b8a6" },
-  end: { icon: "■", name: "End", color: "#6b7280" },
+export const NODE_META: Record<WorkflowNode["type"], { icon: string; name: string; color: string; help: string }> = {
+  agentTask: { icon: "🧑‍💼", name: "Agent task", color: "#6d4aff", help: "One agent does one piece of work" },
+  parallel: { icon: "🔀", name: "Run in parallel", color: "#0ea5e9", help: "Start several steps at the same time" },
+  branch: { icon: "🔷", name: "Decision", color: "#a855f7", help: "Pick a path based on the previous result" },
+  toolCall: { icon: "🔧", name: "Tool call", color: "#64748b", help: "Use a tool or app (sending/spending asks you first)" },
+  humanApproval: { icon: "✋", name: "Your approval", color: "#d97706", help: "Pause until you approve or ask for changes" },
+  merge: { icon: "🧩", name: "Combine results", color: "#14b8a6", help: "Wait for inputs and merge them" },
+  end: { icon: "🏁", name: "Finish", color: "#16a34a", help: "The workflow is done" },
 };
 
 const STATUS_RING: Record<NodeRunStatus, string> = {
@@ -36,6 +36,15 @@ const STATUS_RING: Record<NodeRunStatus, string> = {
   failed: "#dc2626",
   skipped: "#9ca3af",
 };
+const STATUS_LABEL: Record<NodeRunStatus, string> = {
+  idle: "",
+  queued: "Up next",
+  running: "Running",
+  waiting: "Needs you",
+  done: "Done",
+  failed: "Failed",
+  skipped: "Skipped",
+};
 
 type AtNodeData = { node: WorkflowNode; agentName?: string; agentColor?: string; status?: NodeRunStatus; attempts?: number };
 
@@ -45,32 +54,34 @@ function AtNode({ data, selected }: NodeProps<Node<AtNodeData>>) {
   const active = data.status === "running" || data.status === "waiting";
   return (
     <div
-      className="rounded-md px-3 py-2"
+      className="rounded-xl px-3 py-2.5"
       style={{
         background: "var(--panel)",
         color: "var(--ink)",
-        border: `2px solid ${selected ? "var(--accent)" : meta.color}`,
-        boxShadow: ring !== "transparent" ? `0 0 0 3px ${ring}${active ? "" : "88"}` : undefined,
-        minWidth: 160,
-        maxWidth: 220,
+        border: `1.5px solid ${selected ? "var(--accent)" : "var(--line)"}`,
+        borderLeft: `4px solid ${meta.color}`,
+        boxShadow: ring !== "transparent" ? `0 0 0 3px ${ring}${active ? "" : "55"}, var(--shadow)` : "var(--shadow)",
+        minWidth: 180,
+        maxWidth: 230,
       }}
     >
       <Handle type="target" position={Position.Top} />
-      <div className="flex items-center gap-1 text-[10px] uppercase tracking-wide" style={{ color: meta.color }}>
+      <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide" style={{ color: meta.color }}>
         <span>{meta.icon}</span> {meta.name}
         {data.attempts && data.attempts > 1 ? <span className="muted ml-auto">×{data.attempts}</span> : null}
       </div>
-      <div className="font-medium leading-tight">{data.node.label || data.node.id}</div>
+      <div className="mt-0.5 text-[13px] font-semibold leading-tight">{data.node.label || data.node.id}</div>
       {data.agentName && (
-        <div className="mt-1 flex items-center gap-1 text-[11px]">
-          <span className="inline-block h-2 w-2 rounded-full" style={{ background: data.agentColor }} />
+        <div className="muted mt-1 flex items-center gap-1.5 text-[11px]">
+          <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: data.agentColor }} />
           {data.agentName}
         </div>
       )}
-      {data.node.type === "toolCall" && <div className="muted font-mono text-[10px]">{data.node.config.tool}</div>}
+      {data.node.type === "toolCall" && <div className="muted mt-0.5 font-mono text-[10px]">{data.node.config.tool}</div>}
       {data.status && data.status !== "idle" && (
-        <div className="mt-1 text-[10px] font-semibold uppercase" style={{ color: STATUS_RING[data.status] }}>
-          {data.status === "waiting" ? "waiting for you" : data.status}
+        <div className="mt-1.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ color: STATUS_RING[data.status], background: "var(--bg-soft)" }}>
+          <span className={`inline-block h-1.5 w-1.5 rounded-full ${active ? "pulse" : ""}`} style={{ background: STATUS_RING[data.status] }} />
+          {STATUS_LABEL[data.status]}
         </div>
       )}
       <Handle type="source" position={Position.Bottom} />
@@ -105,6 +116,8 @@ export function FlowGraph(props: {
   onSelect?: (s: { kind: "node" | "edge"; id: string } | null) => void;
   onChange?: (wf: Workflow) => void;
   height?: number | string;
+  /** No panel chrome (when embedded in another card). */
+  bare?: boolean;
 }) {
   const { workflow, team, statuses, editable } = props;
   const agents = useMemo(() => new Map((team?.agents ?? []).map((a) => [a.id, a])), [team]);
@@ -180,7 +193,7 @@ export function FlowGraph(props: {
   };
 
   return (
-    <div style={{ height: props.height ?? 560 }} className="panel">
+    <div style={{ height: props.height ?? 560 }} className={props.bare ? "" : "panel"}>
       <ReactFlow
         nodes={nodes}
         edges={edges}
