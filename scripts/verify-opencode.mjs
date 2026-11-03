@@ -130,14 +130,24 @@ if (SERVE) {
   if (up) {
     // 2.x: @opencode/client is the HTTP client for `opencode serve` (@opencode/sdk is an in-process host).
     const pkg = MAJOR >= 2 ? `@opencode/client@${semver}` : `@opencode-ai/sdk@${semver}`;
-    log(`installing ${pkg} into .m0/ (not saved to package.json)`);
-    let inst = run("npm", ["install", "--no-save", "--no-audit", "--no-fund", "--prefix", `"${M0}"`, pkg], { timeout: 300000 });
+    log(`installing ${pkg} into .m0/ (not saved to the project's package.json)`);
+    // Install *inside* .m0 (its own tiny package.json) instead of using --prefix:
+    // simpler quoting on Windows and works the same across npm versions.
+    writeFileSync(join(M0, "package.json"), JSON.stringify({ name: "agent-town-m0", private: true }, null, 2));
+    const tail = (r) => redact(r.out.split(/\r?\n/).filter((l) => l.trim()).slice(-12).join("\n"));
+    let inst = run("npm", ["install", "--no-audit", "--no-fund", pkg], { cwd: M0, timeout: 300000 });
     if (inst.code !== 0) {
+      log(`npm install ${pkg} failed (exit ${inst.code}${inst.error ? `, ${inst.error.message}` : ""}):`);
+      log(tail(inst));
       const fallback = MAJOR >= 2 ? "@opencode/client" : "@opencode-ai/sdk";
-      log(`exact version not available; trying ${fallback}`);
-      inst = run("npm", ["install", "--no-save", "--no-audit", "--no-fund", "--prefix", `"${M0}"`, fallback], { timeout: 300000 });
+      log(`trying ${fallback} (latest) instead`);
+      inst = run("npm", ["install", "--no-audit", "--no-fund", fallback], { cwd: M0, timeout: 300000 });
+      if (inst.code !== 0) {
+        log(`npm install ${fallback} failed too (exit ${inst.code}${inst.error ? `, ${inst.error.message}` : ""}):`);
+        log(tail(inst));
+      }
     }
-    if (inst.code !== 0) log(redact(inst.out.split(/\r?\n/).slice(-10).join("\n")));
+    if (inst.code === 0) log(`installed: ${run("npm", ["ls", "--depth=0"], { cwd: M0 }).out.split(/\r?\n/).filter((l) => l.includes("@opencode")).join(", ")}`);
     // The check script must live next to .m0/node_modules so imports resolve there.
     copyFileSync(join(ROOT, "scripts", "opencode-sdk-check.mjs"), join(M0, "opencode-sdk-check.mjs"));
     const check = run("node", ["opencode-sdk-check.mjs"], {
@@ -145,7 +155,8 @@ if (SERVE) {
       timeout: 240000,
       env: { ...env, OPENCODE_URL: `http://127.0.0.1:${PORT}`, M0_PROMPT: SMOKE ? "1" : "0", M0_DIRECTORY: ROOT },
     });
-    log(redact(check.out));
+    log(redact(check.out) || "(the SDK check printed nothing)");
+    if (check.code !== 0) log(`SDK check exited with code ${check.code}${check.error ? ` (${check.error.message})` : ""}`);
   }
   log("serve log (tail):");
   log(redact(serveLog.join("").split(/\r?\n/).slice(-15).join("\n")));
