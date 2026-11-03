@@ -18,7 +18,7 @@ Update this file whenever the current phase, active feature, or implementation s
 - Server: `node:sqlite` store, Markdown vault on disk, REST + SSE, localhost-only CORS, orphaned runs closed on restart.
 - Web: team builder, React Flow workflow builder (+ JSON tab, import / export, checks), run view (canvas office, graph, board, logs, cost, approvals, controls, outputs, replay, agent detail).
 - Tests: `npm test` runs 15 core + 5 API tests, all passing. The demo was also driven end-to-end in Chromium (review rejection → sign-off → pause / reassign / resume → gated send → done) with no console errors.
-- M0 script: `scripts/verify-opencode.sh` (+ `scripts/opencode-sdk-check.mjs`).
+- M0 script: `npm run verify:opencode` (cross-platform Node; `.sh` kept for macOS/Linux) + `scripts/opencode-sdk-check.mjs`.
 
 ## In Progress
 
@@ -27,7 +27,7 @@ Update this file whenever the current phase, active feature, or implementation s
 ## Next Up
 
 - **User:** run `npm install && npm run dev`, open http://127.0.0.1:3000, and run the Launch Brief demo. Give feedback or approval.
-- **User:** run `scripts/verify-opencode.sh` (then `--serve`, and optionally `--smoke`) and share the report.
+- **User (Windows 11):** `git pull`, then `npm install`, then `npm run verify:opencode -- --serve` (optionally add `--smoke`), and share the report.
 - **Then (M2):** OpenCode adapter against the pinned SDK → MCP + OpenConnector connectors → real demo run.
 
 ## Open Questions
@@ -51,4 +51,5 @@ Update this file whenever the current phase, active feature, or implementation s
 - 2026-11-03: Session 1 built M0 contracts and M1 in a cloud container (no OpenCode available). The branch is `claude/wonderful-goodall-t2hsgx`.
 - Data lives in `./data` (git-ignored); delete it to reset to the starter templates. Templates are only seeded when there are no teams.
 - `AGENT_TOWN_MOCK_STEP_MS` sets mock speed (default 350 ms per event); `AGENT_TOWN_PORT` sets the server port (default 4317); `NEXT_PUBLIC_AGENT_TOWN_API` sets the API URL the web app uses.
+- The user is on **Windows 11**: keep all scripts Node-based and test with Windows in mind.
 - Next.js 16 writes `apps/web/AGENTS.md` on dev start; it is git-ignored.

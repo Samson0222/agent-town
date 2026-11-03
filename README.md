@@ -6,7 +6,7 @@ A visual, multi-agent office for a single local user. You create your own agent 
 
 ## Quick start (mock mode: no keys, no spend)
 
-Requires Node **22.13+**.
+Requires Node **22.13+**. Works on Windows 11, macOS and Linux.
 
 ```bash
 npm install
@@ -42,7 +42,7 @@ docs/           plan, progress tracker, architecture, schema, discussion log
 | `npm run dev` | Server + web together |
 | `npm test` | Core engine and API tests |
 | `npm run typecheck` | Type-check all workspaces |
-| `scripts/verify-opencode.sh` | Milestone 0 check of your local OpenCode (see [docs/milestone-0-opencode.md](docs/milestone-0-opencode.md)) |
+| `npm run verify:opencode` | Milestone 0 check of your local OpenCode, works on Windows/macOS/Linux (see [docs/milestone-0-opencode.md](docs/milestone-0-opencode.md)) |
 
 ## Safety rules
 

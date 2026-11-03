@@ -2,6 +2,14 @@
 
 Newest first. Record decisions and open points from each session.
 
+## 2026-11-03 — User is on Windows 11
+
+- Running `scripts/verify-opencode.sh` on Windows opened the "Select an app" dialog, because Windows can't run `.sh` files.
+- **Decision:** every user-facing script runs through Node so it works on Windows. Added `npm run verify:opencode` (`scripts/verify-opencode.mjs`). The `.sh` file stays as a macOS/Linux equivalent.
+- Fixed `scripts/dev.mjs` for Windows: it now spawns npm through a shell (Node refuses to spawn `.cmd` files without one) and stops child processes with `taskkill /T`.
+- Fixed both verify scripts: the SDK check now runs from inside `.m0/`, so it imports the SDK installed there.
+- Going forward, test commands and paths with Windows in mind (PowerShell, `\` paths, `.cmd` shims).
+
 ## 2026-11-03 — Kick-off (session 1)
 
 ### Decisions

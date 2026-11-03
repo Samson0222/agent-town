@@ -93,7 +93,8 @@ if [ "$SERVE" = 1 ]; then
   if [ "${MAJOR:-0}" -ge 2 ]; then SDK_PKG="@opencode/sdk"; else SDK_PKG="@opencode-ai/sdk@$(printf '%s' "$VERSION" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -n1)"; fi
   log "installing $SDK_PKG into .m0/ (not saved to package.json)"
   npm install --silent --no-save --prefix "$ROOT/.m0" "$SDK_PKG" >/dev/null 2>&1 || npm install --silent --no-save --prefix "$ROOT/.m0" "${SDK_PKG%@*}" >/dev/null 2>&1
-  (cd "$ROOT/.m0" && OPENCODE_URL="http://127.0.0.1:$PORT" M0_PROMPT="$SMOKE" node "$ROOT/scripts/opencode-sdk-check.mjs") 2>&1 | redact | tee -a "$REPORT"
+  cp "$ROOT/scripts/opencode-sdk-check.mjs" "$ROOT/.m0/"  # must sit next to .m0/node_modules
+  (cd "$ROOT/.m0" && OPENCODE_URL="http://127.0.0.1:$PORT" M0_PROMPT="$SMOKE" node opencode-sdk-check.mjs) 2>&1 | redact | tee -a "$REPORT"
   log "serve log (tail):"
   tail -n 15 "$ROOT/.m0/serve.log" 2>/dev/null | redact | tee -a "$REPORT"
 fi

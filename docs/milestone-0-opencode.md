@@ -4,27 +4,29 @@ The brief requires checking the **real** local OpenCode before writing the adapt
 
 ## Run it
 
-From the repo root (macOS / Linux; on Windows use WSL or Git Bash):
+Run these from the repo root, in any terminal: **Windows PowerShell / VS Code terminal**, macOS or Linux. They need Node 22.13+.
 
 ```bash
-scripts/verify-opencode.sh
+npm run verify:opencode
 ```
 
 This is free. It runs `opencode --version`, `opencode models`, `opencode debug config` (redacted) and lists provider *names* from your auth file, never the values.
 
 ```bash
-scripts/verify-opencode.sh --serve
+npm run verify:opencode -- --serve
 ```
 
 Also free. It starts `opencode serve` on `127.0.0.1:4096` with a random `OPENCODE_SERVER_PASSWORD`, installs the SDK that matches your version into `.m0/` (git-ignored), and creates and deletes one session. It prints which SDK methods exist, so the adapter is built against your real API rather than the docs.
 
 ```bash
-scripts/verify-opencode.sh --serve --smoke
+npm run verify:opencode -- --serve --smoke
 ```
 
 **This spends a little credit.** It sends one tiny `opencode run` prompt and one SDK prompt, which shows how cost and tokens are reported.
 
 The report is written to `m0-opencode-report.txt` (git-ignored). **Read it before sharing.** Keys and tokens are redacted, but check anyway.
+
+> On Windows, don't run `scripts/verify-opencode.sh` directly, because Windows will ask which app should open it. Use the `npm run` commands above; the `.sh` file is an equivalent for macOS/Linux only.
 
 ## What happens next
 

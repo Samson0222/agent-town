@@ -6,7 +6,7 @@ Follows [brief-v0.3.md](brief-v0.3.md) → *Build order*. ✅ done · 🟡 partl
 - ✅ Runtime adapter contract + capability manifest (`packages/core/src/adapters/contract.ts`)
 - ✅ Connector contract + registry with allowlists and read/write/send/spend categories
 - ✅ Normalized event model (`packages/core/src/events.ts`)
-- ✅ Verification script: `scripts/verify-opencode.sh` (+ `--serve`, `--smoke`)
+- ✅ Verification script: `npm run verify:opencode` (+ `-- --serve`, `--smoke`); cross-platform
 - ⏸ Run it on the user's machine; record the version, models and subscription; pin the version ([milestone-0-opencode.md](milestone-0-opencode.md))
 
 ## Milestone 1 — builders + mock engine
