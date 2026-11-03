@@ -21,3 +21,4 @@ auth.json
 **/opencode/auth.json
 m0-opencode-report*.txt
 apps/web/AGENTS.md
+.m0/
