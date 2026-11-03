@@ -1,0 +1,66 @@
+@import "tailwindcss";
+@import "@xyflow/react/dist/style.css";
+
+:root {
+  --bg: #f6f3ee;
+  --panel: #ffffff;
+  --ink: #1f1b16;
+  --muted: #6b6259;
+  --line: #e4ddd3;
+  --accent: #c2410c;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #15130f;
+    --panel: #1f1c17;
+    --ink: #f1ece4;
+    --muted: #a39a8f;
+    --line: #34302a;
+    --accent: #fb923c;
+  }
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: ui-sans-serif, system-ui, sans-serif;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.muted { color: var(--muted); }
+
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 12px; border-radius: 6px; border: 1px solid var(--line);
+  background: var(--panel); color: var(--ink); font-size: 14px; cursor: pointer;
+}
+.btn:hover { border-color: var(--accent); }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn-danger { color: #dc2626; }
+.btn-sm { padding: 3px 8px; font-size: 12px; }
+
+.input {
+  width: 100%; padding: 6px 8px; border-radius: 6px; border: 1px solid var(--line);
+  background: var(--panel); color: var(--ink); font-size: 14px;
+}
+label.field { display: block; font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+label.field > .input { margin-top: 2px; }
+
+.react-flow__node { font-size: 12px; }
+.react-flow { --xy-background-color: transparent; }
+@media (prefers-color-scheme: dark) {
+  .react-flow {
+    --xy-edge-stroke: #6b6259;
+    --xy-controls-button-background-color: #1f1c17;
+    --xy-controls-button-color: #f1ece4;
+    --xy-edge-label-background-color: #1f1c17;
+    --xy-edge-label-color: #f1ece4;
+  }
+}

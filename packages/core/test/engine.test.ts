@@ -202,3 +202,20 @@ describe("other starter templates run in mock mode", () => {
     });
   }
 });
+
+describe("tool gating inside runtime sessions", () => {
+  it("never hands send/spend tools to a runtime session", async () => {
+    const { engine } = setup();
+    const { team, workflow } = launch();
+    const run = await engine.start(workflow, team, {});
+    autoApprove(run);
+    await run.done;
+    // The only send call must come from the gated Tool Call node, after an approval.
+    const sendCalls = run.events.filter((e) => e.type === "tool.call" && e.tool === "mock-chat.send_message");
+    expect(sendCalls).toHaveLength(1);
+    expect(sendCalls[0]!.connector).toBe("mock-chat");
+    const approvalSeq = run.events.find((e) => e.type === "approval.resolved" && e.nodeId === "share")!.seq;
+    expect(sendCalls[0]!.seq).toBeGreaterThan(approvalSeq);
+    expect(run.events.some((e) => e.type === "runtime.event" && e.kind === "tools.withheld")).toBe(true);
+  });
+});

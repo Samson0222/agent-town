@@ -2,7 +2,7 @@ import type { RuntimeAdapter } from "../adapters/contract";
 import { CAPABILITIES } from "../adapters/contract";
 import type { RuntimeAdapterRegistry } from "../adapters/registry";
 import type { Vault } from "../connectors/contract";
-import type { ConnectorRegistry } from "../connectors/registry";
+import { isToolAllowed, type ConnectorRegistry } from "../connectors/registry";
 import type { AgentInfo, AgentStatus, AgentTownEvent, EventDraft, RunStatus, TaskStage } from "../events";
 import { resolveAgent, type AgentTemplate, type Team } from "../schema/team";
 import { entryNodes, type Workflow, type WorkflowNode } from "../schema/workflow";
@@ -391,7 +391,7 @@ export class Run {
       const handoff: Handoff = { fromNodeId: node.id, fromLabel: node.label || node.id, fromAgent: fromAgent?.name, output: result.output };
       const isLoop = this.graph.canReach(e.target, node.id) && (this.runCounts.get(e.target) ?? 0) > 0;
       const toAgent = nodeAgentId(target, this.overrides);
-      if (fromAgent || toAgent) {
+      if ((fromAgent || toAgent) && target.type !== "end") {
         this.emit({
           type: "message",
           kind: isLoop ? "feedback" : "handoff",
@@ -446,6 +446,17 @@ export class Run {
 
     this.agentBusy.set(agentId, (this.agentBusy.get(agentId) ?? 0) + 1);
     this.setAgent(agentId, "thinking", `Starting ${node.label || node.id}`);
+    const { allowed: sessionTools, withheld } = await this.sessionTools(agent);
+    if (withheld.length) {
+      this.emit({
+        type: "runtime.event",
+        kind: "tools.withheld",
+        message: `Not given to the runtime session (needs your approval — use a Tool Call node): ${withheld.join(", ")}`,
+        from: agentId,
+        nodeId: node.id,
+        runtime,
+      });
+    }
 
     const tryModel = async (modelId: string): Promise<string> => {
       const { sessionId } = await adapter.startSession({
@@ -456,7 +467,7 @@ export class Run {
         role: agent.role,
         systemPrompt: agent.systemPrompt,
         model: modelId,
-        allowedTools: agent.tools,
+        allowedTools: sessionTools,
       });
       const key = `${node.id}:${sessionId}`;
       this.sessions.set(key, { adapter, sessionId });
@@ -599,6 +610,29 @@ export class Run {
       output: decision.approved ? upstream : `Rejected by the user.${note ? ` Feedback: ${note}` : ""}\n\n${upstream}`,
       outcome: decision.approved ? "approved" : "rejected",
     };
+  }
+
+  /**
+   * Tools handed to a runtime session. A session can't pause mid-prompt for a click,
+   * so tools that need approval (send / spend, and write unless auto-approved) are
+   * withheld; they can only run through a gated Tool Call node. Entries that are not
+   * registered connector tools (runtime-native tool names) pass through unchanged.
+   */
+  private async sessionTools(agent: AgentTemplate): Promise<{ allowed: string[]; withheld: string[] }> {
+    const registered = await this.deps.connectors.listAllTools();
+    const allowed: string[] = [];
+    const withheld: string[] = [];
+    for (const t of registered) {
+      if (!isToolAllowed(agent.tools, t.id)) continue;
+      const auth = await this.deps.connectors.authorize(t.id, agent);
+      (auth.allowed && !auth.needsApproval ? allowed : withheld).push(t.id);
+    }
+    const known = new Set(this.deps.connectors.manifests().map((m) => m.id));
+    for (const entry of agent.tools) {
+      const connector = entry.split(".")[0] ?? "";
+      if (entry !== "*" && !known.has(connector)) allowed.push(entry);
+    }
+    return { allowed, withheld };
   }
 
   private nodeAgentOf(nodeId: string): string | undefined {
