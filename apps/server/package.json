@@ -1,0 +1,21 @@
+{
+  "name": "@agent-town/server",
+  "version": "0.3.0",
+  "private": true,
+  "type": "module",
+  "description": "Agent Town backend: localhost-only HTTP + SSE, SQLite store, Markdown vault, runtime/connector registries.",
+  "scripts": {
+    "dev": "tsx watch --clear-screen=false src/main.ts",
+    "start": "tsx src/main.ts",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@agent-town/core": "0.3.0",
+    "zod": "4.6.7",
+    "tsx": "4.23.15"
+  },
+  "devDependencies": {
+    "vitest": "3.2.7"
+  }
+}
