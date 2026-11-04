@@ -33,7 +33,6 @@ Model providers (Layer 2) sit *behind* runtimes. An agent names a model id and a
 | `packages/core/src/templates` | Starter templates. They are plain data and examples only. |
 | `apps/server` | Store (`node:sqlite`), disk vault, REST + SSE. Localhost only. |
 | `apps/web` | Team builder (+ Agent Factory import), workflow builder (React Flow), run view (office, graph, board, activity, steps, cost, outputs, replay). |
-| `packages/office-renderer` | Vendored [rafapetter/agent-town](https://github.com/rafapetter/agent-town) pixel renderer (MIT) plus documented patches; wrapped by `apps/web/components/Office.tsx`. |
 | `packages/adapter-opencode` | OpenCode 2.2.0 runtime adapter (`@opencode/client@2.2.0`); opt-in via `AGENT_TOWN_OPENCODE_URL`. |
 | `packages/pixel-office` | pixel-agents office engine + art (MIT) with Agent Town's controller, loader and desk planner. |
 | `packages/core/src/importers` | Agent Factory role-template importer (our code; format only). |
@@ -121,7 +120,12 @@ The server persists every event and fans it out over SSE (`/api/runs/:id/stream`
 
 ## Office view
 
-The `Office` wrapper pushes `reduceRunState(events)` into the renderer and nothing else. Agent statuses map to renderer activities (`thinking → planning`, `working → coding / reading / searching / reviewing` by current tool, `waiting-for-human → waiting_approval`, `done → success`, `failed → error`, paused run → `paused`). Task stages map to renderer stages (`inbox → todo`, `doing → in_progress`, `review`, `done`). The renderer runs with `ambient: false` (patch 0001), so characters only move when an event changes their status or task.
+`apps/web/components/Office.tsx` wraps `PixelOffice` (`packages/pixel-office`) and pushes only `reduceRunState(events)` into it. Every team member is always in the office:
+- **thinking / working:** seated and typing (`setAgentActive(true)` plus the current tool)
+- **waiting-for-human:** seated with a "…" bubble
+- **done / idle:** not active, so they stroll and then return to their desk
+
+Nobody strolls while running. Desk pods are added when a team has more agents than work seats. Name tags are HTML laid over the canvas.
 
 ## Security / safety
 - Both the server and Next dev bind to `127.0.0.1`. CORS accepts only localhost origins, and other origins get 403.

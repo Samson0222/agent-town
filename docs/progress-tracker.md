@@ -81,7 +81,6 @@ Update this file whenever the current phase, active feature, or implementation s
 - Claude Code adapter (M3): Agent SDK (TypeScript) or headless `claude` CLI?
 - OpenConnector: where it runs locally, and whether the connector demo should read a GitHub issue or a Notion page.
 - Should pause also cancel and re-queue in-flight steps (needs `cancellation`)? Today in-flight steps finish.
-- Send patches 0001 / 0002 upstream to rafapetter/agent-town? (Needs the user's OK; it publishes something.)
 
 ## Architecture Decisions
 
@@ -90,11 +89,13 @@ Update this file whenever the current phase, active feature, or implementation s
 - Runs snapshot their workflow and team at start.
 - Workflow v1: `schemaVersion` + `revision`; optional `entryNodeIds` for loops back to the first node.
 - `node:sqlite` (Node ≥ 22.13) instead of a native SQLite module.
-- Office renderer = vendored rafapetter/agent-town at 78e8e91 (npm 0.2.0 ships no JS). All local changes are in `packages/office-renderer/patches/` and the app compiles against generated `types/`.
+- Office = vendored pixel-agents (MIT) in `packages/pixel-office` (replaced the earlier agent-town renderer). The app compiles against generated `types/`.
 - Vault layout follows AI Agent Office; a run's folder is stored in `runs.vault_dir`.
 - Details: [architecture.md](architecture.md), [discussion.md](discussion.md), [reference-review.md](reference-review.md).
 
 ## Session Notes
+
+- 2026-11-04: Added root `AGENTS.md` (rules for coding agents) and `CLAUDE.md` (imports it).
 
 - 2026-11-04: Fixes from user testing: GitHub skill install now accepts a repo link (auto-finds the skill or offers a choice); every agent gets an office character, and the agent page has a "Change look" shortcut.
 
