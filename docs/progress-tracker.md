@@ -8,6 +8,10 @@ Update this file whenever the current phase, active feature, or implementation s
 
 ## Current Goal
 
+- 2026-11-04 (autonomous session, user away): roadmap phases **1 Workspaces ✅, 2 Main agent ✅, 4 Stay in control ✅, 5 Squads + invites ✅, 6 Workflows as saved plans ✅** are built, tested and pushed.
+  - Phases 3 (real runs), 7 (real tools) and 8 (Claude Code) wait for the user's approval.
+  - Decisions are in discussion.md.
+
 - 2026-11-04: New direction agreed: workspaces plus a main agent (docs/ux-proposal.md). The prioritised roadmap is at the top of docs/plan.md. Waiting for the user to confirm the order before phase 1 (Workspaces).
 
 - 2026-11-04: Order approved: (1) office upgrades ✅ → (2) hosted access on **devsam.my** ✅ built (switching it on is the user's step: docs/hosting-setup.md) → (3) 2D/3D switch ✅ → (4) external agents reporting in ✅.
@@ -65,6 +69,17 @@ Update this file whenever the current phase, active feature, or implementation s
   - opt-in registration (`AGENT_TOWN_OPENCODE_URL`, localhost only)
   - 8 adapter tests against a fake 2.2.0 server, plus a compile-time check against the real client package
   - no real runs, no spend
+
+- **Roadmap phases 1, 2, 4, 5, 6 (2026-11-04):**
+  - workspace list and switcher
+  - 3-step New workspace
+  - main agent per workspace
+  - AI Agent screen (Chat, plan card, Run plan, auto-run, "Team is working on" bar, combined reply, Tasks, sub-agent Chat and History, Computer log, live office)
+  - Inbox, grouped Runs, Overview, Usage, Runtimes
+  - squads
+  - invites per workspace
+  - Save plan as workflow, and the main agent reuses workflows
+  - Tests: 36 core, 53 server, plus the pixel-office, OpenCode-adapter and 3D suites. Browser-checked with Playwright: no console errors.
 
 ## In Progress
 

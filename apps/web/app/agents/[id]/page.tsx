@@ -40,6 +40,9 @@ export default function AgentDetailPage() {
   const [tools, setTools] = useState<ToolInfo[]>([]);
   const [skills, setSkills] = useState<Skill[]>([]);
   const [tab, setTab] = useState<Tab>("overview");
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("tab") === "settings") setTab("settings");
+  }, []);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [saving, setSaving] = useState(false);
 

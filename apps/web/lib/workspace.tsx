@@ -14,8 +14,10 @@ type State = {
   /** The open workspace: the one in the URL, else the last one opened. */
   current?: Workspace;
   reload: () => Promise<void>;
+  /** Pages outside /w/… (a workflow, a run) say which workspace they belong to. */
+  remember: (id: string) => void;
 };
-const Ctx = createContext<State>({ workspaces: null, reload: async () => undefined });
+const Ctx = createContext<State>({ workspaces: null, reload: async () => undefined, remember: () => undefined });
 
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const path = usePathname() ?? "/";
@@ -45,9 +47,23 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     void reload();
   }, [inUrl, reload]);
   const current = workspaces?.find((w) => w.id === id);
-  return <Ctx.Provider value={{ workspaces, current, reload }}>{children}</Ctx.Provider>;
+  const remember = useCallback((v: string) => {
+    setRemembered(v);
+    try {
+      localStorage.setItem(KEY, v);
+    } catch {}
+  }, []);
+  return <Ctx.Provider value={{ workspaces, current, reload, remember }}>{children}</Ctx.Provider>;
 }
 
 export const useWorkspaces = () => useContext(Ctx);
 
 export const wsPath = (id: string, page = "") => `/w/${encodeURIComponent(id)}${page ? `/${page}` : ""}`;
+
+/** Make the sidebar show this workspace (for pages outside /w/…). */
+export function useBelongsTo(teamId?: string) {
+  const { remember } = useWorkspaces();
+  useEffect(() => {
+    if (teamId) remember(teamId);
+  }, [teamId, remember]);
+}

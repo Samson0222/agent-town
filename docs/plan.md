@@ -4,26 +4,31 @@ Follows [brief-v0.3.md](brief-v0.3.md) → *Build order*. ✅ done · 🟡 partl
 
 ## Roadmap and priorities (2026-11-04)
 
-Everything still open, in the order I suggest. Each phase is built on the practice runtime, tested, and committed on its own. Nothing spends credit without the user's OK.
+Everything still open, in the order the user approved. Each phase is built on the practice runtime, tested, and committed on its own. Nothing spends credit without the user's OK.
+
+**Status (2026-11-04, autonomous session):**
+- ✅ Phases 1, 2, 4, 5 and 6 are built.
+- ⏸ Phases 3, 7 and 8 wait for the user's approval.
+- ⬜ Phase 9 is later.
 
 | # | Phase | What's in it | Why this order | Needs from the user |
 |---|---|---|---|---|
-| **1** | **Workspaces** | Workspace list and switcher; **New workspace** in three steps (name and goal → office style 2D/3D → team template or custom); existing teams become workspaces automatically; new sidebar inside a workspace (Overview · AI Agent · Runs · Workflows · Usage · Settings); the Start page is removed | Everything else lives inside a workspace | — |
-| **2** | **Main agent + AI Agent screen** | One main agent per workspace. **Chat** → plan → **Run plan** / auto-run within the cost cap → the "Team is working on… n/m" bar → it combines the results and replies. **Tasks** tab (plan history, progress, report, cancel), sub-agent **Chat / History**, **Computer** tab = live tool log. Plans run on the existing engine as step-list workflows. On the practice runtime the planner gives simple, predictable plans. | The new way in; this is the product | — |
-| **3** | **Make it real** | First real OpenCode run; the main agent plans on a real model; answering OpenCode's permission questions in our banner (`respond()` in the adapter contract); optionally start `opencode serve` for you | A main agent needs a real model to be useful | **OK to spend** a little on a cheap or free model; **OK for the `respond()` change** |
-| **4** | **Stay in control** | **Inbox** (everything waiting for you, across workspaces, with a badge); Runs grouped *Needs you / Running / Finished*; workspace **Overview**; **Usage** page (cost per day, agent, workflow and runtime); **Runtimes** page (what's connected, online, models) | Once real runs happen, you need one place for decisions and spend | — |
-| **5** | **Squads + per-workspace access** | Several squads per workspace, each with a lead and its own desk cluster; the main agent routes steps to an agent or a squad; invites and roles per workspace; outside agents listed per workspace | Larger teams, sharing with others | — |
-| **6** | **Workflows (saved plans)** | Save any finished plan as a workflow with one click; the main agent reuses workflows; the step-list and graph editors stay | Repeat work becomes one click | — |
-| **7** | **Real tools** | Generic MCP connector; OpenConnector demo (GitHub issue or Notion page); agent-desktop / browser connector, which turns the Computer tab into a real browser or desktop | Agents act on real apps; this is where the risky actions are | Where OpenConnector runs and which demo; desktop approvals: **(a)** auto-approve for chosen agents and apps, or **(b)** ask for each action |
-| **8** | **Second runtime** | Claude Code adapter, and a run that mixes runtimes | Proves runtimes really plug in | **Agent SDK or headless CLI** |
-| **9** | **Later** | Schedules (run a workflow on a timer); squad leads planning their own part; office styles (cosy room…); Ctrl+K search; ACP and framework adapters; push adapter for outside runtimes | Nice to have | — |
+| ✅ **1** | **Workspaces** | Workspace list and switcher; **New workspace** in three steps (name and goal → office style 2D/3D → team template or custom); existing teams become workspaces automatically; new sidebar inside a workspace (Overview · AI Agent · Runs · Workflows · Usage · Settings); the Start page is removed | Everything else lives inside a workspace | — |
+| ✅ **2** | **Main agent + AI Agent screen** | One main agent per workspace. **Chat** → plan → **Run plan** / auto-run within the cost cap → the "Team is working on… n/m" bar → it combines the results and replies. **Tasks** tab (plan history, progress, report, cancel), sub-agent **Chat / History**, **Computer** tab = live tool log. Plans run on the existing engine as step-list workflows. On the practice runtime the planner gives simple, predictable plans. | The new way in; this is the product | — |
+| ⏸ **3** | **Make it real** | First real OpenCode run; the main agent plans on a real model; answering OpenCode's permission questions in our banner (`respond()` in the adapter contract); optionally start `opencode serve` for you | A main agent needs a real model to be useful | **OK to spend** a little on a cheap or free model; **OK for the `respond()` change** |
+| ✅ **4** | **Stay in control** | **Inbox** (everything waiting for you, across workspaces, with a badge); Runs grouped *Needs you / Running / Finished*; workspace **Overview**; **Usage** page (cost per day, agent, workflow and runtime); **Runtimes** page (what's connected, online, models) | Once real runs happen, you need one place for decisions and spend | — |
+| ✅ **5** | **Squads + per-workspace access** | Several squads per workspace, each with a lead and its own desk cluster; the main agent routes steps to an agent or a squad; invites and roles per workspace; outside agents listed per workspace | Larger teams, sharing with others | — |
+| ✅ **6** | **Workflows (saved plans)** | Save any finished plan as a workflow with one click; the main agent reuses workflows; the step-list and graph editors stay | Repeat work becomes one click | — |
+| ⏸ **7** | **Real tools** | Generic MCP connector; OpenConnector demo (GitHub issue or Notion page); agent-desktop / browser connector, which turns the Computer tab into a real browser or desktop | Agents act on real apps; this is where the risky actions are | Where OpenConnector runs and which demo; desktop approvals: **(a)** auto-approve for chosen agents and apps, or **(b)** ask for each action |
+| ⏸ **8** | **Second runtime** | Claude Code adapter, and a run that mixes runtimes | Proves runtimes really plug in | **Agent SDK or headless CLI** |
+| ⬜ **9** | **Later** | Schedules (run a workflow on a timer); squad leads planning their own part; office styles (cosy room…); Ctrl+K search; ACP and framework adapters; push adapter for outside runtimes | Nice to have | — |
 
 **You can do these at any time, outside the phases:**
 - go online with Cloudflare (docs/hosting-setup.md)
 - try a real GitHub skill install
 - re-run `npm run verify:opencode -- --serve`
 
-**Small open point:** should **Pause** also stop steps that are already running? It can be decided in phase 4.
+**Pause (decided in phase 4):** Pause stops new steps from starting, and steps already running finish. Stop ends everything at once.
 
 ## Milestone 0 — interface + verify OpenCode
 - ✅ Runtime adapter contract + capability manifest (`packages/core/src/adapters/contract.ts`)

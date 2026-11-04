@@ -2,6 +2,19 @@
 
 Newest first. Record decisions and open points from each session.
 
+## 2026-11-04 — Phase 6: Workflows as saved plans, and wrap-up of the autonomous session
+
+- **Save:** a finished plan has **Save as workflow**. It becomes a step-list workflow in that workspace, named after the request, with the request as its default goal and "Saved from plan #n" as its description. It saves only once.
+- **Reuse:** the planner prompt lists the workspace's workflows. A plan may say `workflow: <id>` instead of steps, and the plan card shows "Runs the saved workflow …". The practice planner picks a workflow when the request mentions its name.
+- **Run directly:** a **Run** button on each workflow (and in the editor) asks for the goal in an in-app dialog.
+- **Navigation:** pages outside `/w/…` (a workflow, a run) keep the sidebar on their workspace. A run's back link goes to that workspace's Runs.
+- **Not done (needs the user's approval):**
+  - phase 3: real OpenCode runs, the main agent on a real model, `respond()`
+  - phase 7: MCP, OpenConnector, desktop / browser
+  - phase 8: Claude Code adapter
+
+  No switch was added for these; the existing opt-in `AGENT_TOWN_OPENCODE_URL` already keeps real runs off.
+
 ## 2026-11-04 — Phase 4 (stay in control) and phase 5 (squads, per-workspace invites) (autonomous; my decisions)
 
 - **Phase 4 was mostly built with phase 1:** Inbox (with a badge), Runs grouped Needs you / Running / Finished, Overview, Usage and Runtimes.

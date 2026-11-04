@@ -42,6 +42,7 @@ interface PlanView {
   done: number;
   total: number;
   costUsd?: number;
+  workflowName?: string;
   createdAt: string;
 }
 interface HistoryRow {
@@ -312,7 +313,11 @@ function PlanCard({ plan, ws, onOpenTasks }: { plan: PlanView; ws: Team; onOpenT
       </div>
       {p.workflow ? (
         <p className="text-sm">
-          Runs the saved workflow <Link className="underline" href={`/workflows/${p.workflow}`}>{p.workflow}</Link>.
+          Runs the saved workflow{" "}
+          <Link className="font-semibold underline" href={`/workflows/${p.workflow}`}>
+            {plan.workflowName ?? p.workflow}
+          </Link>
+          .
         </p>
       ) : (
         <ol className="space-y-1.5">

@@ -54,6 +54,8 @@ export interface PlanView extends PlanRow {
   done: number;
   total: number;
   costUsd?: number;
+  /** Name of the saved workflow this plan reuses. */
+  workflowName?: string;
 }
 
 export function createMainAgent(deps: MainAgentDeps) {
@@ -231,7 +233,8 @@ export function createMainAgent(deps: MainAgentDeps) {
       }));
     }
     const run = p.runId ? store.getRunRow(p.runId) : undefined;
-    return { ...p, steps, done: steps.filter((s) => s.status === "done").length, total: steps.length, costUsd: run?.costUsd };
+    const reused = p.plan?.workflow ? store.getWorkflow(p.plan.workflow)?.name : undefined;
+    return { ...p, steps, done: steps.filter((s) => s.status === "done").length, total: steps.length, costUsd: run?.costUsd, workflowName: reused };
   }
 
   /** Keep a plan as a workflow, so it can be run again in one click (and the main agent can reuse it). */

@@ -86,7 +86,7 @@ For a **sub-agent**:
 - The agent library and skills stay shared between workspaces.
 
 
-Status: **proposal for discussion**, nothing built. Reference: multica-ai/multica at `16ce2df` (2026-11-04), design only, no code (see reference-review.md §7).
+Status: the v2 direction above is **built** (roadmap phases 1, 2, 4, 5 and 6; see discussion.md 2026-11-04). The older proposal below is kept for reference. Reference: multica-ai/multica at `16ce2df` (2026-11-04), design only, no code (see reference-review.md §7).
 
 ## How Multica groups things
 

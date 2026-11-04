@@ -143,3 +143,28 @@ describe("main agent", () => {
     expect((await api(`/api/workspaces/${ws.id}/chat/nobody`, { json: { text: "hi" } })).status).toBe(404);
   });
 });
+
+describe("workflows as saved plans", () => {
+  it("saves a finished plan as a step-list workflow, and the main agent reuses it by name", async () => {
+    const ws = (await api("/api/templates/research-brief/instantiate", { json: { name: "Reuse" } })).body.team;
+    const main = ws.mainAgentId;
+    const first = (await api(`/api/workspaces/${ws.id}/chat/${main}`, { json: { text: "Weekly market scan" } })).body.plan.id;
+    await until(async () => (await api(`/api/plans/${first}`)).body.status === "proposed");
+    await api(`/api/plans/${first}/run`, { method: "POST" });
+    await until(async () => (await api(`/api/plans/${first}`)).body.status === "done", 15000);
+    const wf = (await api(`/api/plans/${first}/save`, { method: "POST" })).body;
+    expect(wf.teamId).toBe(ws.id);
+    expect(wf.name).toBe("Weekly market scan");
+    expect(wf.simple.steps.at(-1).who).toBe(main);
+    expect((await api(`/api/plans/${first}/save`, { method: "POST" })).body.id).toBe(wf.id); // once only
+
+    const again = (await api(`/api/workspaces/${ws.id}/chat/${main}`, { json: { text: "Run the weekly market scan again" } })).body.plan.id;
+    await until(async () => (await api(`/api/plans/${again}`)).body.status === "proposed");
+    const p = (await api(`/api/plans/${again}`)).body;
+    expect(p.plan.workflow).toBe(wf.id);
+    expect(p.workflowName).toBe("Weekly market scan");
+    await api(`/api/plans/${again}/run`, { method: "POST" });
+    await until(async () => (await api(`/api/plans/${again}`)).body.status === "done", 15000);
+    expect((await api(`/api/plans/${again}`)).body.reply).toContain("Here's what the team came up with");
+  });
+});

@@ -150,3 +150,9 @@ See [discussion.md](discussion.md) for the dated log. Key structural ones:
 3. `node:sqlite` (Node ≥ 22.13), so there is no native dependency.
 4. Workflow schema v1 carries `schemaVersion: 1` plus a content `revision` that is bumped on each save. `migrateWorkflow` is the hook for future versions.
 5. A run snapshots its workflow and team, so later edits never change a past run's replay.
+6. **A workspace is a team with more fields** (`goal`, `officeStyle`, `mainAgentId`, `autoRun`, `squads`, `access`). They all have defaults, so older data needs no migration. The main agent is an ordinary library agent that `resolveTeam` puts first.
+7. **The main agent runs on the existing engine.**
+   - Planning and chat are one-step runs (`runs.purpose` = `plan` / `chat`).
+   - A plan is a ` ```plan ` JSON block, checked by `parsePlan` (core, runtime-agnostic) and turned into a step-list workflow with a final "Combine and reply" step.
+   - Plans and chat threads live in the `plans` and `messages` tables (apps/server/src/mainAgent.ts).
+8. **Invites per workspace** give a request `me.scope`. `workspaceOf()` traces each request to its workspace and checks the person's role there; lists are filtered. Shared things are read-only for them.

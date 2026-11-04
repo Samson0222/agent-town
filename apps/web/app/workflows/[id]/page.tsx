@@ -7,6 +7,7 @@ import { FlowGraph, NODE_META } from "@/components/FlowGraph";
 import { StepListMode } from "@/components/StepList";
 import { api, download, errorText, type PreflightResult, type ToolInfo } from "@/lib/api";
 import { useRunWorkflow } from "@/lib/runWorkflow";
+import { useBelongsTo } from "@/lib/workspace";
 
 type Sel = { kind: "node" | "edge"; id: string } | null;
 type NodePatch = { label?: string; maxRuns?: number; config?: Record<string, unknown> };
@@ -30,6 +31,7 @@ function defaultConfig(type: WorkflowNode["type"], team?: Team): WorkflowNode["c
 export default function WorkflowBuilder() {
   const { id } = useParams<{ id: string }>();
   const [wf, setWf] = useState<Workflow | null>(null);
+  useBelongsTo(wf?.teamId);
   const [teams, setTeams] = useState<Team[]>([]);
   const [tools, setTools] = useState<ToolInfo[]>([]);
   const [sel, setSel] = useState<Sel>(null);

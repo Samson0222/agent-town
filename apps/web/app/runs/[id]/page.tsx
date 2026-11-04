@@ -10,6 +10,7 @@ import { ActivityFeed, AgentDrawer, ApprovalBanner, Board, CostMeter, Outputs, S
 import { RunStatusChip } from "@/components/ui";
 import { api, errorText } from "@/lib/api";
 import { useRun } from "@/lib/useRun";
+import { useBelongsTo } from "@/lib/workspace";
 import { useDialogs } from "@/components/Dialogs";
 
 type View = "office" | "graph" | "board";
@@ -18,6 +19,7 @@ export default function RunPage() {
   const { confirm } = useDialogs();
   const { id } = useParams<{ id: string }>();
   const { detail, events, visibleEvents, state, connected, error, replaySeq, setReplaySeq } = useRun(id);
+  useBelongsTo(detail?.run.teamId);
   const [view, setView] = useState<View>("office");
   const [selected, setSelected] = useState<string | null>(null);
   const [ctrlErr, setCtrlErr] = useState<string | null>(null);
@@ -58,7 +60,7 @@ export default function RunPage() {
       {/* Header */}
       <header className="panel p-5">
         <div className="flex flex-wrap items-start gap-4">
-          <Link href="/runs" className="btn btn-ghost btn-icon" aria-label="Back to runs">
+          <Link href={detail ? `/w/${encodeURIComponent(detail.run.teamId)}/runs` : "/runs"} className="btn btn-ghost btn-icon" aria-label="Back to runs">
             <ArrowLeft size={18} />
           </Link>
           <div className="min-w-0 flex-1">
