@@ -4,6 +4,36 @@
 
 ## v2 direction: workspaces and a main agent (from the user's Socialix screenshots, design only)
 
+### Decisions so far (user, 2026-11-04)
+| Topic | Decision |
+|---|---|
+| Running plans | **Run plan** button, plus an **auto-run** switch that works only within the cost cap |
+| Teams inside a workspace | **Several squads per workspace**, as in Multica (see below) |
+| Main agent | **One per workspace**: built in, renamable, with its own model and runtime. It can't be deleted and sits above the squads. |
+| Workflows | Proposed: rename to **Playbooks**, saved plans the main agent can reuse (see below). Waiting for the user's OK. |
+| Office styles | **Later.** For now the creation step offers the existing 2D office and 3D town. |
+| Hosted access | **Invite per workspace**, with a role per workspace. The owner sees everything. |
+
+### Squads inside a workspace
+- **Roster:** a workspace has a roster of agents from the shared library. **Squads** are named groups inside it, each with a **lead**, e.g. "Content squad: lead Creator, plus Copy editor", "Research squad".
+- **Who the main agent can assign:** a plan step goes to either **one agent** or **a squad**. When a squad gets a step, its lead splits it among the squad's members. Underneath, this is a small plan of its own, run the same way, so the engine doesn't change.
+- **In the office,** each squad gets its own desk cluster.
+- **Build in two stages:**
+  1. squads as groups the main agent can see and route to (it names agents, guided by the squads)
+  2. squad leads planning their own part (nested plans)
+
+### Playbooks (today's Workflows)
+- **Save:** any finished plan can be saved as a playbook.
+- **Reuse:** the main agent checks the playbooks first ("use *Weekly report*"), and you can start one directly.
+- **Edit:** a playbook opens in the step list, with the graph editor as an advanced option.
+- **Later:** playbooks are what Schedules will run.
+- **Menu:** keep it under Work rather than Settings, because it's something you use, not a configuration.
+
+### From the latest screenshots
+- **Tasks tab:** a history of plans (#32 running, #31 done). Each shows a progress bar, its steps with agent and "after step 1 · revised", an expandable **main agent's report**, and **Cancel plan**.
+- **Sub-agent History tab:** "Main agent assigned: …" with status and time.
+- **Computer tab:** the agent's own browser or desktop. Ours starts as the live tool log. A real browser or desktop comes with the agent-desktop / browser connector, which follows the approval rules already planned (reference-review §8).
+
 ### The flow
 1. **Workspaces** (the screenshots call them campaigns) replace the Start page. The first screen is the list of workspaces plus **New workspace**.
 2. **New workspace** has three steps:

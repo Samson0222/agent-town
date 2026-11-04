@@ -2,6 +2,17 @@
 
 Newest first. Record decisions and open points from each session.
 
+## 2026-11-04 — Workspace / main agent: user decisions
+
+- **Plans:** a Run plan button plus an auto-run switch, within the cost cap.
+- **Squads:** several per workspace, as in Multica.
+- **Main agent:** one built-in per workspace.
+- **Office styles:** later.
+- **Invites:** per workspace.
+- **Workflows:** my suggestion is to rename them **Playbooks** (saved, reusable plans that the main agent can pick). Waiting for the user's OK.
+
+Details are in docs/ux-proposal.md.
+
 ## 2026-11-04 — New direction: workspaces and a main agent (discussion, more screenshots coming)
 
 From the user's Socialix screenshots (design reference only):
