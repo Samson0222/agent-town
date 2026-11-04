@@ -2,6 +2,18 @@
 
 Newest first. Record decisions and open points from each session.
 
+## 2026-11-04 — The 3D office becomes a small town
+
+The user felt "office" was stronger than "town". The 3D view now sits inside a town (`packages/office-3d/src/town.ts`):
+- grass, a plaza with flower beds, a street with lamps and cars driving by, neighbouring buildings and houses, trees that sway, a park with a pond
+- day, dusk and night follow the local clock: lights, sky, lit windows, street lamps and headlights change by themselves (no control or label added)
+- camera keeps a strip of town in view around the office
+- nothing tall stands south or east of the office (camera side), so it never hides anyone
+
+More vivid office inside: ACES tone mapping, a building base so the cut-away reads as a building, posters, whiteboard, rug, pendant lights, and a **status lamp on every monitor** (blue working, amber needs you, red failed, green done).
+
+Not done: the 2D pixel office is vendored art and is unchanged; the UI copy still says "office".
+
 ## 2026-11-04 — Merged `claude/nice-brown-bqz4fe` into this branch
 
 At the user's request, merged the other session's branch. It had split off after the skills/avatars commit and adds in-app dialogs instead of the browser's, a collapsible sidebar, a full-screen office stage with floating panels, and a Skills pop-up fix.

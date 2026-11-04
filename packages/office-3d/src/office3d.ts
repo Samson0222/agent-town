@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { Crowd, type Person, type Status } from "./crowd";
 import type { OfficePlan } from "./layout";
+import { Town, phaseAt, SKY, type Phase } from "./town";
 
 /**
  * The 3D office view. Same interface as the 2D PixelOffice (setAgents, agentAt,
@@ -32,6 +33,7 @@ const HAIR = ["#5a3a22", "#d4a017", "#1b1b1b", "#e6e6e6", "#7a3e12", "#2b1d16"];
 const PANTS = ["#2f3e5c", "#3a3a3a", "#4b3b2a", "#2e4a3b", "#333344", "#5c2f3e"];
 
 const WALL_H = 2.3;
+const DESK_SPAN = 7.4;
 
 function hash(s: string) {
   let h = 0;
@@ -66,6 +68,12 @@ export class Office3D {
   private last = 0;
   private observer: ResizeObserver;
   private agents: Office3DAgent[] = [];
+  private town?: Town;
+  private phase: Phase = "day";
+  private phaseCheck = 0;
+  private hemi!: THREE.HemisphereLight;
+  private sun!: THREE.DirectionalLight;
+  private deskLamps: THREE.MeshStandardMaterial[] = [];
 
   static supported(): boolean {
     try {
@@ -85,10 +93,14 @@ export class Office3D {
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-    this.scene.background = new THREE.Color("#171a2b");
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 1.05;
+    this.scene.background = new THREE.Color(SKY.day);
 
-    this.scene.add(new THREE.HemisphereLight("#fff7ec", "#3a3550", 1.6));
+    this.hemi = new THREE.HemisphereLight("#fff7ec", "#6d7a5a", 1.7);
+    this.scene.add(this.hemi);
     const sun = new THREE.DirectionalLight("#ffffff", 2.2);
+    this.sun = sun;
     sun.position.set(-6, 14, 9);
     sun.castShadow = true;
     sun.shadow.mapSize.set(2048, 2048);
@@ -103,7 +115,25 @@ export class Office3D {
     this.observer = new ResizeObserver(() => this.resize());
     this.observer.observe(canvas);
     this.resize();
+    this.applyPhase(phaseAt());
     this.raf = requestAnimationFrame(this.frame);
+  }
+
+  private applyPhase(p: Phase) {
+    this.phase = p;
+    const look = {
+      day: { sky: SKY.day, hemi: ["#fff7ec", "#6d7a5a", 1.7], sun: ["#fff4e0", 2.3, [-6, 14, 9]] },
+      dusk: { sky: SKY.dusk, hemi: ["#ffd9b8", "#4a3f66", 1.25], sun: ["#ff9a5c", 1.7, [-12, 6, 7]] },
+      night: { sky: SKY.night, hemi: ["#8fa6ff", "#1a1f3a", 1.0], sun: ["#9db4ff", 0.8, [-6, 14, 9]] },
+    }[p] as { sky: string; hemi: [string, string, number]; sun: [string, number, [number, number, number]] };
+    (this.scene.background as THREE.Color).set(look.sky);
+    this.hemi.color.set(look.hemi[0]);
+    this.hemi.groundColor.set(look.hemi[1]);
+    this.hemi.intensity = look.hemi[2];
+    this.sun.color.set(look.sun[0]);
+    this.sun.intensity = look.sun[1];
+    this.sun.position.set(...look.sun[2]);
+    this.town?.setPhase(p);
   }
 
   // -------------------------------------------------------------------------
@@ -191,7 +221,8 @@ export class Office3D {
     // Fit the floor and walls: project the room's corners into camera space.
     const inv = this.camera.matrixWorldInverse;
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-    for (const x of [plan.minX, plan.maxX]) for (const z of [plan.minZ, plan.maxZ]) for (const y of [0, WALL_H]) {
+    const M = 2.6; // a strip of town around the office stays in view
+    for (const x of [plan.minX - M, plan.maxX + M]) for (const z of [plan.minZ - M, plan.maxZ + M]) for (const y of [0, WALL_H]) {
       const p = new THREE.Vector3(x, y, z).applyMatrix4(inv);
       minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x); minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
     }
@@ -211,6 +242,12 @@ export class Office3D {
     const dt = Math.min(0.1, this.last ? now - this.last : 0);
     this.last = now;
     this.crowd.update(dt, now);
+    this.town?.update(now, dt);
+    if (now - this.phaseCheck > 30) {
+      this.phaseCheck = now;
+      const p = phaseAt();
+      if (p !== this.phase) this.applyPhase(p);
+    }
     const typingDesks = new Map<number, "typing" | "waiting">();
     for (const p of this.crowd.list()) {
       const rig = this.rigs.get(p.id);
@@ -226,6 +263,15 @@ export class Office3D {
       m.emissive.set(s === "typing" ? "#5fb3ff" : s === "waiting" ? "#ffb547" : "#1a2236");
       m.emissiveIntensity = s ? 0.9 + Math.sin(now * 6 + i) * 0.1 : 0.4;
     });
+    const statusOf = new Map<number, Status>();
+    for (const p of this.crowd.list()) statusOf.set(p.desk, p.status);
+    this.deskLamps.forEach((m, i) => {
+      const s = statusOf.get(i);
+      const c = s === "working" || s === "thinking" ? "#4f9dff" : s === "waiting-for-human" ? "#ffb020" : s === "failed" ? "#ff4d5e" : s === "done" ? "#3ddc84" : "#556070";
+      m.emissive.set(c);
+      m.color.set(c);
+      m.emissiveIntensity = s && s !== "idle" ? 1.4 + Math.sin(now * 4 + i) * 0.4 : 0.15;
+    });
     this.renderer.render(this.scene, this.camera);
     this.opts.onFrame?.();
   };
@@ -239,10 +285,18 @@ export class Office3D {
     this.furniture.traverse((o) => (o as THREE.Mesh).geometry?.dispose());
     this.furniture = new THREE.Group();
     this.screens = [];
+    this.deskLamps = [];
+    this.scene.remove(this.town?.group ?? new THREE.Group());
+    this.town = new Town(plan);
+    this.scene.add(this.town.group);
+    this.town.setPhase(this.phase);
     const g = this.furniture;
     const W = plan.maxX - plan.minX;
     const D = plan.maxZ - plan.minZ;
 
+    // The building's base, so the cut-away room reads as a building and not a floating tile.
+    g.add(box(W + 0.5, 0.45, D + 0.5, "#cdbfae", (plan.minX + plan.maxX) / 2 + 0.25, -0.28, (plan.minZ + plan.maxZ) / 2 + 0.25, { receive: true }));
+    g.add(box(W + 0.55, 0.06, D + 0.55, "#8e7f6e", (plan.minX + plan.maxX) / 2 + 0.25, -0.03, (plan.minZ + plan.maxZ) / 2 + 0.25));
     // Floor: warm wood for the desks, blue carpet for the lounge, a lighter corridor.
     g.add(box(W, 0.1, D, "#b98a5e", (plan.minX + plan.maxX) / 2, -0.05, (plan.minZ + plan.maxZ) / 2, { receive: true }));
     g.add(box(1.5, 0.012, D, "#cfb08a", plan.corridorX, 0.006, (plan.minZ + plan.maxZ) / 2, { receive: true }));
@@ -258,6 +312,28 @@ export class Office3D {
     for (let x = plan.minX + 1.4; x < plan.corridorX - 0.5; x += 2.4) {
       g.add(box(1.3, 0.9, 0.05, "#9fd3ff", x, 1.45, plan.minZ + 0.02, { emissive: "#6fb6ff", emissiveIntensity: 0.35 }));
       g.add(box(1.4, 0.06, 0.08, "#ffffff", x, 0.97, plan.minZ + 0.05));
+    }
+    // Posters and a whiteboard
+    const posters = ["#ff6b9d", "#4f86f7", "#ffd23f", "#06d6a0"];
+    for (let i = 0; i < 4; i++) {
+      const px = plan.minX + 1.8 + i * 2.4 + (i > 1 ? 0.6 : 0);
+      if (px > plan.corridorX - 1) break;
+      g.add(box(0.5, 0.7, 0.03, "#ffffff", px, 1.6, plan.minZ + 0.03));
+      g.add(box(0.42, 0.28, 0.035, posters[i]!, px, 1.78, plan.minZ + 0.04));
+      g.add(box(0.3, 0.05, 0.035, "#c8ccd8", px, 1.5, plan.minZ + 0.04));
+      g.add(box(0.22, 0.05, 0.035, "#c8ccd8", px, 1.4, plan.minZ + 0.04));
+    }
+    g.add(box(0.05, 1.0, 1.7, "#f8fafc", plan.minX + 0.03, 1.5, plan.minZ + 3.2));
+    for (let i = 0; i < 4; i++) g.add(box(0.06, 0.04, 0.9 - i * 0.15, ["#e63946", "#2a9d8f", "#4f86f7", "#e9c46a"][i]!, plan.minX + 0.04, 1.8 - i * 0.2, plan.minZ + 3.0 + i * 0.08));
+    // Rug under the desks
+    g.add(box(DESK_SPAN, 0.014, D - 1.2, "#7d93c9", (plan.minX + plan.corridorX) / 2 - 0.4, 0.008, (plan.minZ + plan.maxZ) / 2 + 0.2, { receive: true }));
+    // Pendant lights over the lounge
+    for (const dx of [-1.2, 1.2]) {
+      g.add(box(0.02, 0.8, 0.02, "#2b2b2b", lx + dx, 2.0, plan.coffeeTable.z + 0.3));
+      const lampMat = new THREE.MeshStandardMaterial({ color: "#ffe9b8", emissive: "#ffd27a", emissiveIntensity: 0.9 });
+      const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.2, 12, 8), lampMat);
+      bulb.position.set(lx + dx, 1.55, plan.coffeeTable.z + 0.3);
+      g.add(bulb);
     }
     g.add(sign("AGENT TOWN", lx, 1.55, plan.minZ + 0.03));
     // Bookshelf + clock on the west wall
@@ -278,6 +354,12 @@ export class Office3D {
       this.screens.push(screen);
       g.add(box(0.5, 0.025, 0.16, "#e8e8e8", d.x, 0.8, d.z - 0.12));
       g.add(box(0.1, 0.12, 0.1, "#f4f1ea", d.x + 0.55, 0.85, d.z - 0.05)); // mug
+      // Status lamp on the monitor: shows what this person is doing at a glance.
+      const lamp = new THREE.MeshStandardMaterial({ color: "#556070", emissive: "#556070", emissiveIntensity: 0.15 });
+      const lm = new THREE.Mesh(new THREE.SphereGeometry(0.06, 10, 8), lamp);
+      lm.position.set(d.x + 0.3, 1.46, d.z + 0.24);
+      g.add(lm);
+      this.deskLamps.push(lamp);
       // chair (back on the north side)
       const s = d.seat;
       g.add(box(0.5, 0.08, 0.5, "#3d5a80", s.x, 0.44, s.z, { cast: true }));
