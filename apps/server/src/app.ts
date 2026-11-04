@@ -148,10 +148,15 @@ export function createApp(opts: AppOptions) {
 
   if (opts.seedTemplates !== false && store.listTeams().length === 0) {
     for (const t of starterTemplates()) {
-      store.saveTeam(t.team);
+      store.saveTeam(Team.parse({ ...t.team, goal: t.description }));
       store.saveWorkflow(t.workflow);
     }
   }
+  // Teams from before workspaces become workspaces: each gets its main agent.
+  store.ensureMainAgents();
+
+  /** Plans waiting for "Run plan" (filled in by the main agent module). */
+  let inboxPlans: () => Array<Record<string, unknown>> = () => [];
 
   const routes: Array<{ method: string; pattern: RegExp; keys: string[]; handler: Handler; need: Permission }> = [];
   /** Reading needs "view", changing needs "edit" unless a route says otherwise (see auth.ts). */
@@ -185,10 +190,21 @@ export function createApp(opts: AppOptions) {
     ),
   );
   route("GET", "/api/connectors", async () => ({ connectors: connectors.manifests(), tools: await connectors.listAllTools() }));
-  route("GET", "/api/templates", () => starterTemplates().map((t) => ({ id: t.id, name: t.name, description: t.description, teamName: t.team.name })));
-  route("POST", "/api/templates/:id/instantiate", (_q, _r, p) => {
+  route("GET", "/api/templates", () =>
+    starterTemplates().map((t) => ({
+      id: t.id,
+      name: t.name,
+      description: t.description,
+      teamName: t.team.name,
+      agents: t.team.agents.map((a) => ({ name: a.name, role: a.role, color: a.appearance.color, sprite: a.appearance.sprite })),
+    })),
+  );
+  /** Copy a template team (and its workflow) as a new workspace. Body (optional): name, goal, officeStyle. */
+  route("POST", "/api/templates/:id/instantiate", (_q, _r, p, body) => {
     const t = starterTemplates().find((x) => x.id === p.id) ?? fail(404, "No such template");
-    const teamId = newId(t.team.name);
+    const b = (body ?? {}) as { name?: string; goal?: string; officeStyle?: string };
+    const name = String(b.name ?? "").trim().slice(0, 80);
+    const teamId = newId(name || t.team.name);
     const suffix = teamId.split("-").pop()!;
     const rename = new Map<string, string>();
     for (const a of t.team.agents) {
@@ -196,9 +212,20 @@ export function createApp(opts: AppOptions) {
       rename.set(a.id, id);
       store.saveAgent({ ...a, id });
     }
-    const team = store.saveTeam(Team.parse({ ...t.team, id: teamId, name: `${t.team.name} (copy)`, vault: teamId, agents: [], memberIds: [...rename.values()] }));
+    const team = store.saveTeam(
+      Team.parse({
+        ...t.team,
+        id: teamId,
+        name: name || `${t.team.name} (copy)`,
+        goal: String(b.goal ?? t.description).slice(0, 2000),
+        officeStyle: b.officeStyle === "3d" ? "3d" : "2d",
+        vault: teamId,
+        agents: [],
+        memberIds: [...rename.values()],
+      }),
+    );
     const wf = store.saveWorkflow(
-      remapWorkflowAgents({ ...t.workflow, id: newId(t.workflow.name), name: `${t.workflow.name} (copy)`, teamId: team.id, revision: 1 }, rename),
+      remapWorkflowAgents({ ...t.workflow, id: newId(t.workflow.name), name: name ? t.workflow.name : `${t.workflow.name} (copy)`, teamId: team.id, revision: 1 }, rename),
     );
     return { team, workflow: wf };
   });
@@ -214,9 +241,14 @@ export function createApp(opts: AppOptions) {
   });
   route("GET", "/api/agents", () => {
     const teams = store.listTeamsRaw();
-    return store.listAgents().map((a) => ({ ...a, teams: teams.filter((t) => t.memberIds.includes(a.id)).map((t) => ({ id: t.id, name: t.name })) }));
+    const mains = store.mainAgents();
+    return store.listAgents().map((a) => ({
+      ...a,
+      mainOf: mains.get(a.id),
+      teams: teams.filter((t) => t.memberIds.includes(a.id) || t.mainAgentId === a.id).map((t) => ({ id: t.id, name: t.name })),
+    }));
   });
-  route("GET", "/api/agents/:id", (_q, _r, p) => ({ agent: mustAgent(p.id!), ...agentUsage(p.id!) }));
+  route("GET", "/api/agents/:id", (_q, _r, p) => ({ agent: mustAgent(p.id!), mainOf: store.mainAgents().get(p.id!), ...agentUsage(p.id!) }));
   route("POST", "/api/agents", (_q, _r, _p, body) => {
     const b = (body ?? {}) as { name?: string; teamId?: string } & Record<string, unknown>;
     const name = (b.name ?? "").trim() || "New agent";
@@ -239,6 +271,7 @@ export function createApp(opts: AppOptions) {
   });
   route("DELETE", "/api/agents/:id", (_q, _r, p) => {
     mustAgent(p.id!);
+    if (store.mainAgents().has(p.id!)) fail(409, "This is a workspace's main agent — it stays as long as the workspace does");
     const usage = agentUsage(p.id!);
     if (usage.workflows.length) fail(409, `Used by ${usage.workflows.length} workflow(s) — reassign those steps first`, usage);
     store.deleteAgent(p.id!);
@@ -350,17 +383,26 @@ export function createApp(opts: AppOptions) {
     return store.saveTeam(team);
   });
   route("PUT", "/api/teams/:id", (_q, _r, p, body) => {
-    mustTeam(p.id!);
-    const team = Team.parse({ ...(body as object), id: p.id });
+    const existing = mustTeam(p.id!);
+    const team = Team.parse({ ...(body as object), id: p.id, mainAgentId: existing.mainAgentId });
     const ids = team.memberIds.length ? team.memberIds : team.agents.map((a) => a.id);
     if (new Set(ids).size !== ids.length) fail(400, "An agent can only be in a team once");
     for (const id of team.memberIds) if (!store.getAgent(id)) fail(400, `Unknown agent "${id}"`);
     return store.saveTeam(team);
   });
+  /** New workspace (custom team): name, goal, office style and members picked from the Agents list. */
+  route("POST", "/api/workspaces", (_q, _r, _p, body) => {
+    const b = (body ?? {}) as { name?: string; goal?: string; officeStyle?: string; memberIds?: string[] };
+    const name = String(b.name ?? "").trim().slice(0, 80) || "New workspace";
+    const memberIds = [...new Set(Array.isArray(b.memberIds) ? b.memberIds.map(String) : [])];
+    for (const id of memberIds) if (!store.getAgent(id)) fail(400, `Unknown agent "${id}"`);
+    const id = newId(name);
+    return store.saveTeam(Team.parse({ id, name, goal: String(b.goal ?? "").slice(0, 2000), officeStyle: b.officeStyle === "3d" ? "3d" : "2d", vault: id, memberIds }));
+  });
   route("POST", "/api/teams/:id/clone", (_q, _r, p) => {
     const src = mustTeam(p.id!);
     const id = newId(src.name);
-    return store.saveTeam({ ...src, id, name: `${src.name} (copy)`, vault: id, createdAt: undefined });
+    return store.saveTeam({ ...src, id, name: `${src.name} (copy)`, vault: id, mainAgentId: undefined, access: [], createdAt: undefined });
   });
   /** Import one or more Agent Factory role-template folders into a team (format only; see core/importers). */
   route("POST", "/api/teams/:id/import/agent-factory", async (_q, _r, p, body) => {
@@ -445,7 +487,10 @@ export function createApp(opts: AppOptions) {
   });
 
   // --- runs ------------------------------------------------------------------
-  route("GET", "/api/runs", () => store.listRuns());
+  route("GET", "/api/runs", (req) => {
+    const q = new URL(req.url!, "http://x").searchParams;
+    return store.listRuns(Number(q.get("limit")) || 50, { teamId: q.get("teamId") ?? undefined, all: q.get("all") === "1" });
+  });
   route(
     "POST",
     "/api/runs",
@@ -582,6 +627,64 @@ export function createApp(opts: AppOptions) {
     },
     "owner",
   );
+
+  // Usage ------------------------------------------------------------------
+  route("GET", "/api/usage", (req) => {
+    const q = new URL(req.url!, "http://x").searchParams;
+    const u = store.usage(q.get("teamId") ?? undefined, Math.min(365, Math.max(1, Number(q.get("days")) || 30)));
+    const names = new Map(store.listAgents().map((a) => [a.id, a.name]));
+    const simulated = new Set(adapters.manifests().filter((m) => !m.spendsCredit).map((m) => m.id));
+    return {
+      ...u,
+      byAgent: u.byAgent.map((r) => ({ ...r, name: names.get(r.key) ?? r.key })),
+      byRuntime: u.byRuntime.map((r) => ({ ...r, name: adapters.get(r.key)?.manifest.name ?? r.key, simulated: simulated.has(r.key) })),
+    };
+  });
+
+  // Inbox: everything waiting for a person, across workspaces -----------------
+  route("GET", "/api/inbox", () => {
+    const teams = new Map(store.listTeamsRaw().map((t) => [t.id, t.name]));
+    const items: Array<Record<string, unknown>> = [];
+    for (const run of engine.active()) {
+      const row = store.getRunRow(run.id);
+      if (!row) continue;
+      const st = reduceRunState(store.events(run.id));
+      for (const a of Object.values(st.approvals)) {
+        if (a.resolved) continue;
+        items.push({
+          id: `approval:${run.id}:${a.approvalId}`,
+          kind: "approval",
+          teamId: row.teamId,
+          teamName: teams.get(row.teamId) ?? row.teamId,
+          title: a.message,
+          detail: row.workflowName,
+          runId: run.id,
+          approvalId: a.approvalId,
+          category: a.category,
+          preview: a.preview?.slice(0, 600),
+          at: row.createdAt,
+        });
+      }
+    }
+    for (const p of inboxPlans()) items.push({ ...p, teamName: teams.get(String(p.teamId)) ?? p.teamId });
+    const dayAgo = new Date(Date.now() - 86400000).toISOString();
+    for (const r of store.listRuns(100)) {
+      if (r.status === "failed" && r.createdAt >= dayAgo && !store.isDismissed(`failed:${r.id}`)) {
+        items.push({ id: `failed:${r.id}`, kind: "failed", teamId: r.teamId, teamName: teams.get(r.teamId) ?? r.teamId, title: `${r.workflowName} failed`, runId: r.id, at: r.endedAt ?? r.createdAt });
+      }
+    }
+    for (const bot of store.listReporters()) {
+      const p = presence(bot);
+      if (p.report === "needs-you") items.push({ id: `outside:${bot.id}`, kind: "outside", teamId: bot.teamId, teamName: teams.get(bot.teamId) ?? bot.teamId, title: `${bot.name} needs you`, detail: p.summary, at: bot.reportedAt });
+    }
+    return items.sort((a, b) => String(b.at).localeCompare(String(a.at)));
+  });
+  route("POST", "/api/inbox/dismiss", (_q, _r, _p, body) => {
+    const id = String(((body ?? {}) as { id?: string }).id ?? "");
+    if (!/^failed:[\w-]+$/.test(id)) fail(400, "Only failed-run notices can be dismissed");
+    store.dismiss(id);
+    return { ok: true };
+  }, "run");
 
   // People (hosted access) -------------------------------------------------
   route("GET", "/api/me", (_q, _r, _p, _b, me) => ({ ...me, hosted: !!opts.access, spentTodayUsd: me.local ? undefined : store.spentToday(me.email) }));

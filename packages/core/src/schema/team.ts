@@ -71,6 +71,32 @@ export const TeamDefaults = z.object({
 });
 export type TeamDefaults = z.infer<typeof TeamDefaults>;
 
+/** A named group inside a workspace, with a lead (Multica-style squads; design only). */
+export const Squad = z.object({
+  id: z.string().regex(/^[a-z0-9-]+$/),
+  name: z.string().min(1),
+  /** Agent id of the squad lead (must be in the squad). */
+  leadId: z.string().default(""),
+  memberIds: z.array(z.string()).default([]),
+});
+export type Squad = z.infer<typeof Squad>;
+
+/** Someone invited to one workspace (hosted access). */
+export const WorkspaceInvite = z.object({
+  email: z.string().email(),
+  role: z.enum(["operator", "viewer"]),
+  dailyBudgetUsd: z.number().nonnegative().optional(),
+});
+export type WorkspaceInvite = z.infer<typeof WorkspaceInvite>;
+
+export const OFFICE_STYLES = ["2d", "3d"] as const;
+export type OfficeStyle = (typeof OFFICE_STYLES)[number];
+
+/**
+ * A team is also a **workspace** (the UI calls it that): its goal, office style,
+ * main agent, squads and invites live here. Older teams get the defaults, so they
+ * become workspaces with no migration step.
+ */
 export const Team = z.object({
   schemaVersion: z.literal(1).default(1),
   id: z.string().min(1),
@@ -83,7 +109,18 @@ export const Team = z.object({
     model: { id: "mock/standard" },
     costCapUsd: 1,
   }),
-  /** Agent ids from the shared agent library. */
+  /** What this workspace is for (shown on its Overview and given to the main agent). */
+  goal: z.string().default(""),
+  /** Which office this workspace opens in. */
+  officeStyle: z.enum(OFFICE_STYLES).default("2d"),
+  /** The workspace's main agent (an agent in the library). It plans, hands out work and combines the results. */
+  mainAgentId: z.string().optional(),
+  /** Start a plan as soon as the main agent proposes it (only within the cost cap; send and spend still ask). */
+  autoRun: z.boolean().default(false),
+  squads: z.array(Squad).default([]),
+  /** People invited to this workspace only (hosted access). */
+  access: z.array(WorkspaceInvite).default([]),
+  /** Agent ids from the shared agent library (the sub-agents; the main agent is separate). */
   memberIds: z.array(z.string()).default([]),
   /**
    * Resolved members (filled by the server from the agent library when a team is read

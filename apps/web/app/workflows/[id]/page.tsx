@@ -6,6 +6,7 @@ import { parseWorkflow, type EdgeCondition, type Team, type Workflow, type Workf
 import { FlowGraph, NODE_META } from "@/components/FlowGraph";
 import { StepListMode } from "@/components/StepList";
 import { api, download, errorText, type PreflightResult, type ToolInfo } from "@/lib/api";
+import { useRunWorkflow } from "@/lib/runWorkflow";
 
 type Sel = { kind: "node" | "edge"; id: string } | null;
 type NodePatch = { label?: string; maxRuns?: number; config?: Record<string, unknown> };
@@ -38,6 +39,7 @@ export default function WorkflowBuilder() {
   const [tab, setTab] = useState<"graph" | "json">("graph");
   const [jsonText, setJsonText] = useState("");
   const [dirty, setDirty] = useState(false);
+  const runWorkflow = useRunWorkflow((text) => setMsg({ ok: false, text }));
 
   useEffect(() => {
     Promise.all([
@@ -105,11 +107,11 @@ export default function WorkflowBuilder() {
   return (
     <div className="flex flex-col gap-3 md:h-[calc(100vh-2rem)]">
       <div className="flex flex-wrap items-center gap-2">
-        <Link href="/workflows" className="muted text-sm">
+        <Link href={`/w/${encodeURIComponent(wf.teamId)}/workflows`} className="muted text-sm">
           ← Workflows
         </Link>
         <input className="input max-w-xs text-lg font-semibold" value={wf.name} onChange={(e) => update({ ...wf, name: e.target.value })} />
-        <select className="input max-w-48" value={wf.teamId} onChange={(e) => update({ ...wf, teamId: e.target.value })} title="Team">
+        <select className="input max-w-48" value={wf.teamId} onChange={(e) => update({ ...wf, teamId: e.target.value })} title="Workspace">
           {teams.map((t) => (
             <option key={t.id} value={t.id}>
               {t.name}
@@ -127,9 +129,9 @@ export default function WorkflowBuilder() {
           <button data-needs="edit" className="btn btn-primary" onClick={() => save()} disabled={!dirty}>
             {dirty ? "Save" : "Saved"}
           </button>
-          <Link className="btn" href="/">
+          <button data-needs="run" className="btn" onClick={async () => (dirty ? await save() : undefined, runWorkflow(wf))}>
             Run…
-          </Link>
+          </button>
         </div>
       </div>
       {msg && <p className={`text-sm ${msg.ok ? "text-green-600" : "text-red-600"}`}>{msg.text}</p>}

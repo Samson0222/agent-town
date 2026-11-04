@@ -10,6 +10,7 @@ import type {
   SessionStatus,
 } from "./contract";
 import { CAPABILITIES } from "./contract";
+import { CHAT_MARKER, COMBINE_MARKER, PLAN_MARKER, practiceChat, practiceCombine, practicePlan } from "../plan/plan";
 
 /**
  * Mock runtime: same contract as a real runtime, fake agents, zero spend.
@@ -211,6 +212,14 @@ function firstLine(text: string, max = 120): string {
 export function mockOutput(opts: SessionOptions, prompt: PromptInput): string {
   const goal = firstLine(prompt.text);
   const who = `${opts.agentName} (${opts.role})`;
+
+  // Main agent and chat prompts: simple, predictable answers so the flow can be tried for free.
+  if (prompt.text.includes(PLAN_MARKER)) {
+    const plan = practicePlan(prompt.text);
+    return `${plan.reply}\n\n\`\`\`plan\n${JSON.stringify(plan, null, 2)}\n\`\`\`\n`;
+  }
+  if (prompt.text.includes(COMBINE_MARKER)) return practiceCombine(prompt.text);
+  if (prompt.text.includes(CHAT_MARKER)) return practiceChat(prompt.text, opts.agentName, opts.role);
 
   const asksVerdict = /VERDICT first|start (your answer )?with\W*VERDICT/i.test(`${opts.systemPrompt}\n${prompt.text}`);
   if (asksVerdict) {

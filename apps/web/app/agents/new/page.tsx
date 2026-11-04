@@ -183,17 +183,19 @@ function NewAgent() {
               Open profile
             </Link>
             {team ? (
-              <Link className="btn" href="/office">
+              <Link className="btn" href={`/office?team=${encodeURIComponent(team.id)}`}>
                 See them in the office
               </Link>
             ) : (
-              <Link className="btn" href="/teams">
-                <Users size={15} /> Add to a team
+              <Link className="btn" href="/">
+                <Users size={15} /> Add to a workspace
               </Link>
             )}
-            <Link className="btn" href="/">
-              <Play size={15} /> Give the team work
-            </Link>
+            {team && (
+              <Link className="btn" href={`/w/${encodeURIComponent(team.id)}/agent`}>
+                <Play size={15} /> Give the team work
+              </Link>
+            )}
             <button
               className="btn btn-ghost"
               onClick={() => {

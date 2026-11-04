@@ -27,6 +27,8 @@ export default function OfficePage() {
           setRuns(r);
           setTeamId((cur) => {
             if (cur) return cur;
+            const asked = new URLSearchParams(window.location.search).get("team");
+            if (asked && t.some((x) => x.id === asked)) return asked;
             try {
               const saved = localStorage.getItem("agent-town:office-team");
               if (saved && t.some((x) => x.id === saved)) return saved;
@@ -55,13 +57,13 @@ export default function OfficePage() {
     return (
       <div className="panel m-8">
         <EmptyState icon={<Users size={22} />} title="Your office is empty">
-          Create a team first. <Link href="/teams" className="underline">Go to Teams</Link>
+          <Link href="/workspaces/new" className="underline">Create a workspace</Link>
         </EmptyState>
       </div>
     );
 
   const picker = (
-    <select className="glass-select" value={teamId} onChange={(e) => choose(e.target.value)} aria-label="Team">
+    <select className="glass-select" value={teamId} onChange={(e) => choose(e.target.value)} aria-label="Workspace">
       {teams.map((t) => (
         <option key={t.id} value={t.id}>
           {t.name}
@@ -115,7 +117,16 @@ function Stage({ team, run, picker, state }: { team: Team; run?: RunRow; picker:
 
   return (
     <div ref={stageRef} className="relative h-full w-full overflow-hidden">
-      <Office people={people} onAgentClick={setSelected} selectedId={selected} height="100%" simulated={state ? isSimulatedRun(state) : false} controlsAt="bottom-center" />
+      <Office
+        people={people}
+        onAgentClick={setSelected}
+        selectedId={selected}
+        height="100%"
+        simulated={state ? isSimulatedRun(state) : false}
+        controlsAt="bottom-center"
+        defaultMode={team.officeStyle}
+        viewScope={team.id}
+      />
 
       <div className="pointer-events-none absolute inset-0 flex flex-col justify-between gap-3 p-3 md:p-4">
         <div className="flex items-start justify-between gap-3">
@@ -142,7 +153,7 @@ function Stage({ team, run, picker, state }: { team: Team; run?: RunRow; picker:
                   Open run <ArrowRight size={14} />
                 </Link>
               ) : (
-                <Link data-needs="run" href="/" className="glass-btn" style={{ background: "var(--accent)", borderColor: "transparent" }}>
+                <Link data-needs="run" href={`/w/${encodeURIComponent(team.id)}/agent`} className="glass-btn" style={{ background: "var(--accent)", borderColor: "transparent" }}>
                   <Play size={14} /> Give them work
                 </Link>
               )}

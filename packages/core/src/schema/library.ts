@@ -12,7 +12,9 @@ import type { Workflow, WorkflowNode } from "./workflow";
 /** Team with members (and their skills) filled in from the library. */
 export function resolveTeam(team: Team, library: AgentTemplate[], skills: Skill[] = []): Team {
   const byId = new Map(library.map((a) => [a.id, a]));
-  const agents = team.memberIds.map((id) => byId.get(id)).filter((a): a is AgentTemplate => !!a);
+  // The main agent sits in the office too, first in line.
+  const ids = [...new Set([...(team.mainAgentId ? [team.mainAgentId] : []), ...team.memberIds])];
+  const agents = ids.map((id) => byId.get(id)).filter((a): a is AgentTemplate => !!a);
   const used = new Set<string>();
   for (const a of agents) for (const r of a.skills) used.add(r.skillId);
   // Global skills (scope "global") apply to every agent unless switched off per agent.

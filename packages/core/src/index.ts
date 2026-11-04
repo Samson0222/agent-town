@@ -13,3 +13,4 @@ export * from "./state/office";
 export * from "./templates";
 export * from "./templates/skills";
 export * from "./importers/agent-factory";
+export * from "./plan/plan";

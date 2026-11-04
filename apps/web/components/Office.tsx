@@ -47,6 +47,8 @@ export function Office({
   height = 704,
   simulated,
   controlsAt = "top-right",
+  defaultMode = "2d",
+  viewScope,
 }: {
   people: OfficePerson[];
   onAgentClick?: (id: string) => void;
@@ -55,10 +57,14 @@ export function Office({
   simulated?: boolean;
   /** Where the 2D/3D switch and the "Simulated" chip sit (pages with floating panels use the bottom). */
   controlsAt?: "top-right" | "bottom-center";
+  /** The workspace's office style. */
+  defaultMode?: "2d" | "3d";
+  /** Remember the 2D/3D switch per workspace. */
+  viewScope?: string;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const officeRef = useRef<OfficeEngine | null>(null);
-  const [mode, setMode] = useViewMode();
+  const [mode, setMode] = useViewMode(defaultMode, viewScope);
   const tagsRef = useRef<HTMLDivElement>(null);
   const peopleRef = useRef(people);
   peopleRef.current = people;
@@ -219,25 +225,34 @@ function toOffice(people: OfficePerson[]): Array<OfficeAgent & Office3DAgent> {
 
 const VIEW_KEY = "agent-town.office-view";
 
-/** 2D or 3D, remembered per browser. Phones start in 2D (lighter). */
-function useViewMode(): ["2d" | "3d", (m: "2d" | "3d") => void] {
+/**
+ * 2D or 3D. Starts in the workspace's office style; a switch is remembered per
+ * workspace in this browser. Phones start in 2D (lighter).
+ */
+function useViewMode(defaultMode: "2d" | "3d", scope?: string): ["2d" | "3d", (m: "2d" | "3d") => void] {
+  const key = scope ? `${VIEW_KEY}:${scope}` : VIEW_KEY;
   const [mode, setModeState] = useState<"2d" | "3d">("2d");
   useEffect(() => {
+    let want = defaultMode;
     try {
-      const saved = localStorage.getItem(VIEW_KEY);
-      if (saved === "3d" && window.innerWidth >= 640) setModeState("3d");
+      const saved = localStorage.getItem(key);
+      if (saved === "2d" || saved === "3d") want = saved;
     } catch {
-      /* storage blocked: stay 2D */
+      /* storage blocked: use the default */
     }
-  }, []);
-  const setMode = useCallback((m: "2d" | "3d") => {
-    setModeState(m);
-    try {
-      localStorage.setItem(VIEW_KEY, m);
-    } catch {
-      /* ignore */
-    }
-  }, []);
+    setModeState(want === "3d" && window.innerWidth >= 640 ? "3d" : "2d");
+  }, [key, defaultMode]);
+  const setMode = useCallback(
+    (m: "2d" | "3d") => {
+      setModeState(m);
+      try {
+        localStorage.setItem(key, m);
+      } catch {
+        /* ignore */
+      }
+    },
+    [key],
+  );
   return [mode, setMode];
 }
 

@@ -6,6 +6,7 @@ import {
   Skill,
   Team,
   parseWorkflow,
+  mainAgentTemplate,
   remapWorkflowAgents,
   resolveTeam,
   sameAgent,
@@ -34,6 +35,26 @@ export interface RunRow {
   endedAt?: string;
   /** Who started it (email) when started through hosted access; empty for local use. */
   startedBy?: string;
+  purpose: RunPurpose;
+}
+
+export type RunPurpose = "work" | "plan" | "chat";
+
+export interface UsageRow {
+  key: string;
+  usd: number;
+  tokens: number;
+  steps: number;
+  runs: number;
+}
+export interface Usage {
+  days: number;
+  totalUsd: number;
+  runs: number;
+  byDay: UsageRow[];
+  byAgent: UsageRow[];
+  byWorkflow: UsageRow[];
+  byRuntime: UsageRow[];
 }
 
 /** An agent running outside Agent Town that reports its status into a team's office. */
@@ -108,6 +129,8 @@ export class Store {
     const cols = this.db.prepare("PRAGMA table_info(runs)").all().map((r) => String(r.name));
     if (!cols.includes("vault_dir")) this.db.exec("ALTER TABLE runs ADD COLUMN vault_dir TEXT");
     if (!cols.includes("started_by")) this.db.exec("ALTER TABLE runs ADD COLUMN started_by TEXT");
+    // What a run is for: "work" (a workflow or a plan), "plan" (the main agent planning) or "chat".
+    if (!cols.includes("purpose")) this.db.exec("ALTER TABLE runs ADD COLUMN purpose TEXT NOT NULL DEFAULT 'work'");
     this.db.exec(`
       -- Outside agents (Codex, other bots, scripts) that report status into an office.
       -- Only a SHA-256 hash of each token is stored.
@@ -117,6 +140,7 @@ export class Store {
         status TEXT, summary TEXT, with_id TEXT, reported_at TEXT
       );
     `);
+    this.db.exec(`CREATE TABLE IF NOT EXISTS dismissed (id TEXT PRIMARY KEY, at TEXT NOT NULL);`);
     this.db.exec(`
       -- People who may use the hosted Agent Town (owner comes from config, not this table).
       CREATE TABLE IF NOT EXISTS people (
@@ -124,6 +148,16 @@ export class Store {
         daily_budget_usd REAL, created_at TEXT NOT NULL
       );
     `);
+  }
+
+  // Inbox notices a person has dismissed ------------------------------------
+
+  dismiss(id: string): void {
+    this.db.prepare("INSERT OR IGNORE INTO dismissed (id, at) VALUES (?, ?)").run(id, new Date().toISOString());
+  }
+
+  isDismissed(id: string): boolean {
+    return !!this.db.prepare("SELECT 1 FROM dismissed WHERE id = ?").get(id);
   }
 
   // Outside agents ------------------------------------------------------------
@@ -235,6 +269,32 @@ export class Store {
     return { ...a, appearance: { ...a.appearance, sprite: `char-${pick}` } };
   }
 
+  /**
+   * Every workspace has a main agent. Teams from before workspaces get one here
+   * (startup), so they become workspaces with nothing for the user to do.
+   */
+  ensureMainAgents(): number {
+    let n = 0;
+    for (const t of this.listTeamsRaw()) {
+      if (t.mainAgentId && this.getAgent(t.mainAgentId)) continue;
+      this.writeTeam({ ...t, mainAgentId: this.createMainAgent(t).id });
+      n++;
+    }
+    return n;
+  }
+
+  createMainAgent(t: Pick<Team, "id" | "name" | "defaults">): AgentTemplate {
+    const base = mainAgentTemplate(t);
+    let id = base.id;
+    for (let i = 2; this.getAgent(id); i++) id = `${base.id}-${i}`;
+    return this.saveAgent({ ...base, id });
+  }
+
+  /** Main agent id → workspace id. */
+  mainAgents(): Map<string, string> {
+    return new Map(this.listTeamsRaw().filter((t) => t.mainAgentId).map((t) => [t.mainAgentId!, t.id]));
+  }
+
   /** Startup backfill: give stored agents without a character one (see withCharacter). */
   assignMissingCharacters(): number {
     let n = 0;
@@ -336,6 +396,31 @@ export class Store {
       .all(agentId, limit) as Array<Record<string, unknown>>;
   }
 
+  /** Cost and tokens by day, agent, workflow and runtime (all runs, including planning and chat). */
+  usage(teamId?: string, days = 30): Usage {
+    const since = new Date(Date.now() - days * 86400000).toISOString();
+    const where = `r.created_at >= ?${teamId ? " AND r.team_id = ?" : ""}`;
+    const args = teamId ? [since, teamId] : [since];
+    const q = (group: string, extra = "") =>
+      this.db
+        .prepare(
+          `SELECT ${group} AS k${extra}, COALESCE(SUM(s.cost_usd),0) AS usd, COALESCE(SUM(s.tokens),0) AS tokens, COUNT(*) AS steps, COUNT(DISTINCT s.run_id) AS runs
+           FROM step_runs s JOIN runs r ON r.id = s.run_id WHERE ${where} GROUP BY k ORDER BY usd DESC`,
+        )
+        .all(...args)
+        .map((x) => ({ key: String(x.k ?? "-"), ...(x.name ? { name: String(x.name) } : {}), usd: Number(x.usd), tokens: Number(x.tokens), steps: Number(x.steps), runs: Number(x.runs) }));
+    const total = this.db.prepare(`SELECT COALESCE(SUM(r.cost_usd),0) AS usd, COUNT(*) AS runs FROM runs r WHERE ${where}`).get(...args);
+    return {
+      days,
+      totalUsd: Number(total?.usd ?? 0),
+      runs: Number(total?.runs ?? 0),
+      byDay: q("substr(s.started_at, 1, 10)").sort((a, b) => a.key.localeCompare(b.key)),
+      byAgent: q("s.agent_id"),
+      byWorkflow: q("CASE r.purpose WHEN 'work' THEN r.workflow_name WHEN 'plan' THEN 'Planning' ELSE 'Chat' END"),
+      byRuntime: q("COALESCE(s.runtime, '-')"),
+    };
+  }
+
   stepRuns(runId: string): Array<Record<string, unknown>> {
     return this.db.prepare("SELECT * FROM step_runs WHERE run_id = ? ORDER BY started_at").all(runId) as Array<Record<string, unknown>>;
   }
@@ -365,7 +450,10 @@ export class Store {
    * has its agents moved into the library first.
    */
   saveTeam(team: Team): Team {
-    const migrated = this.migrateTeamAgents(Team.parse(team));
+    let migrated = this.migrateTeamAgents(Team.parse(team));
+    if (!migrated.mainAgentId || !this.getAgent(migrated.mainAgentId)) migrated = { ...migrated, mainAgentId: this.createMainAgent(migrated).id };
+    // The main agent sits above the team: it's never one of its members.
+    migrated = { ...migrated, memberIds: migrated.memberIds.filter((m) => m !== migrated.mainAgentId) };
     this.writeTeam(migrated);
     return this.getTeam(migrated.id)!;
   }
@@ -379,6 +467,8 @@ export class Store {
   }
 
   deleteTeam(id: string): boolean {
+    const main = this.listTeamsRaw().find((t) => t.id === id)?.mainAgentId;
+    if (main) this.db.prepare("DELETE FROM agents WHERE id = ?").run(main);
     return Number(this.db.prepare("DELETE FROM teams WHERE id = ?").run(id).changes) > 0;
   }
 
@@ -421,12 +511,12 @@ export class Store {
 
   // Runs ---------------------------------------------------------------------
 
-  createRun(id: string, wf: Workflow, team: Team, inputs: Record<string, string>): void {
+  createRun(id: string, wf: Workflow, team: Team, inputs: Record<string, string>, purpose: RunPurpose = "work"): void {
     this.db
       .prepare(
-        "INSERT INTO runs (id, workflow_id, workflow_name, team_id, status, inputs, workflow_snapshot, team_snapshot, created_at) VALUES (?, ?, ?, ?, 'pending', ?, ?, ?, ?)",
+        "INSERT INTO runs (id, workflow_id, workflow_name, team_id, status, inputs, workflow_snapshot, team_snapshot, created_at, purpose) VALUES (?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?)",
       )
-      .run(id, wf.id, wf.name, team.id, JSON.stringify(inputs), JSON.stringify(wf), JSON.stringify(team), new Date().toISOString());
+      .run(id, wf.id, wf.name, team.id, JSON.stringify(inputs), JSON.stringify(wf), JSON.stringify(team), new Date().toISOString(), purpose);
   }
 
   appendEvent(ev: AgentTownEvent): void {
@@ -493,8 +583,16 @@ export class Store {
     }
   }
 
-  listRuns(limit = 50): RunRow[] {
-    return this.db.prepare("SELECT * FROM runs ORDER BY created_at DESC LIMIT ?").all(limit).map(rowToRun);
+  /** Work runs, newest first. Planning and chat runs are included only when asked for. */
+  listRuns(limit = 50, opts: { teamId?: string; all?: boolean } = {}): RunRow[] {
+    const where = [opts.all ? "1=1" : "purpose = 'work'", opts.teamId ? "team_id = ?" : "1=1"].join(" AND ");
+    const args: Array<string | number> = opts.teamId ? [opts.teamId, limit] : [limit];
+    return this.db.prepare(`SELECT * FROM runs WHERE ${where} ORDER BY created_at DESC LIMIT ?`).all(...args).map(rowToRun);
+  }
+
+  getRunRow(id: string): RunRow | undefined {
+    const r = this.db.prepare("SELECT * FROM runs WHERE id = ?").get(id);
+    return r ? rowToRun(r) : undefined;
   }
 
   getRun(id: string): (RunRow & { workflow: Workflow; team: Team }) | undefined {
@@ -535,6 +633,7 @@ function rowToRun(r: Record<string, unknown>): RunRow {
     createdAt: String(r.created_at),
     endedAt: r.ended_at ? String(r.ended_at) : undefined,
     startedBy: r.started_by ? String(r.started_by) : undefined,
+    purpose: (r.purpose ? String(r.purpose) : "work") as RunPurpose,
   };
 }
 

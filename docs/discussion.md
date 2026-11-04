@@ -2,6 +2,42 @@
 
 Newest first. Record decisions and open points from each session.
 
+## 2026-11-04 — Phase 1: Workspaces (autonomous session; decisions made on the user's behalf)
+
+- **Workspace = team, grown up.** The `teams` table and `/api/teams` stay. The Team schema gains:
+  - `goal`
+  - `officeStyle` (2d or 3d)
+  - `mainAgentId`
+  - `autoRun`
+  - `squads`
+  - `access` (per-workspace invites)
+
+  Every field has a default, so old teams read as workspaces without any migration. The UI says "workspace" everywhere.
+- **Main agent:** an ordinary agent in the library, created when a workspace is saved, or at startup for older teams.
+  - `mainOf` marks it in `/api/agents`.
+  - It can't be deleted while its workspace exists.
+  - It's never one of the `memberIds`.
+  - `resolveTeam` puts it first in the team's agents, so it has a desk in the office.
+
+  *Why:* "teams, agents, workflows are data". The main agent stays editable like any agent: rename it, or change its model or runtime.
+- **The Start page is gone.** `/` is now the workspace list.
+  - **New workspace** (`/workspaces/new`) is a 3-step flow: name and goal → office → team template or build your own.
+  - To start a workflow directly, use the **Run** button on Workflows or in the editor, which asks for the goal in an in-app dialog.
+- **Sidebar order:**
+  1. workspace switcher
+  2. Workspaces and Inbox
+  3. the workspace menu: Overview · AI Agent · Runs · Workflows · Usage · Settings
+  4. Library: Agents, Skills, Runtimes, People
+
+  `/teams` and `/teams/:id` redirect to the workspace list and to Settings.
+- **The office style** is the workspace's default view. A 2D/3D switch is remembered per workspace in the browser.
+- **Pulled forward from phase 4,** because the new menu needed them:
+  - **Usage:** `/api/usage`, by day, agent, workflow and runtime, from `step_runs`
+  - **Inbox:** `/api/inbox`, covering approvals, plans waiting to run, failed runs from the last 24 h (dismissible) and outside agents saying "needs you"
+  - **Runs** grouped as Needs you / Running / Finished
+  - a read-only **Runtimes** page
+- **Runs:** a `runs.purpose` column (`work` | `plan` | `chat`). Planning and chat runs stay out of the Runs list unless asked for (`?all=1`).
+
 ## 2026-11-04 — Keep the name "Workflows"; one prioritised roadmap
 
 - **Name:** the user prefers **Workflows** over "Playbooks". Workflows become saved plans that the main agent can reuse.
