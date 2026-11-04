@@ -2,6 +2,20 @@
 
 Newest first. Record decisions and open points from each session.
 
+## 2026-11-04 — New direction: workspaces and a main agent (discussion, more screenshots coming)
+
+From the user's Socialix screenshots (design reference only):
+- **Start page:** replace it with **workspaces**, created as name → office style → team template or a custom team.
+- **Inside a workspace:** the Multica-style information.
+- **Main agent:** you chat with it. It plans, assigns sub-agents, combines their outputs and decides the next step.
+
+**My proposal** (docs/ux-proposal.md, v2):
+- the main agent's plan becomes a step-list workflow on the existing engine, so there's no engine rewrite and the brief's rules still hold
+- you click **Run plan**, unless auto-run is on within the cost cap
+- a workspace is today's team, grown up
+
+**Open questions** for the user are listed in the chat reply. Nothing is built yet.
+
 ## 2026-11-04 — UX review against Multica's grouping (proposal, waiting for the user)
 
 The user asked to refine our UX after Multica's grouping. Re-read Multica at `16ce2df` (design only).

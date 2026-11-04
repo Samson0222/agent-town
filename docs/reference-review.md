@@ -201,3 +201,17 @@ The OpenCode check (`npm run verify:opencode -- --serve`) can run in parallel, s
 - open public access: ours is login-only, see hosting.md
 - the BTC TV
 - the night "go home" animation, which is fake activity
+
+## 10. Socialix screenshots (added 2026-11-04, shared by the user)
+
+These are screenshots of a third-party product ("Socialix", a social-media AI team). We use them for **design ideas only**; no code or art is taken.
+
+**Ideas taken:**
+- a campaign / workspace switcher at the top of the sidebar
+- a Master Agent you chat with, which plans, assigns tasks to specialised agents and reports back
+- a "Team is working on … n/m done" bar
+- a Tasks tab with steps, agents, "after step N" and cancel plan
+- per-agent Chat / History / Computer / Settings tabs
+- a strip of agent avatars beside the live office
+
+See docs/ux-proposal.md (v2 direction).

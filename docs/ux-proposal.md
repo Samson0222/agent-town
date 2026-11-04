@@ -1,5 +1,61 @@
 # UX proposal: grouping and navigation (after Multica)
 
+> **Update 2026-11-04:** the user wants **workspaces** and a **main agent** as the way in. That direction is described first. The Multica grouping below still applies *inside* a workspace.
+
+## v2 direction: workspaces and a main agent (from the user's Socialix screenshots, design only)
+
+### The flow
+1. **Workspaces** (the screenshots call them campaigns) replace the Start page. The first screen is the list of workspaces plus **New workspace**.
+2. **New workspace** has three steps:
+   1. name and goal
+   2. **office style** (preview cards: 2D pixel office, 3D pixel town, more later)
+   3. **team**: pick a template or build one from the Agents list
+3. Inside a workspace, the sidebar has a **workspace switcher** at the top, then that workspace's menu:
+
+   ```
+   [Workspace ▾  Coffee launch]
+   Overview        ← goal, team, recent results, spend, what needs you
+   AI Agent        ← the main screen (below)
+   Runs            ← past plans and runs
+   Workflows       ← saved plans you can reuse
+   Usage
+   Settings        ← office style, team, defaults, people (when hosted)
+   ```
+
+   Shared resources (Agents library, Skills, Runtimes) stay global, in a small section or in Settings.
+
+### The "AI Agent" screen (where users start)
+Three columns:
+- **left:** a strip of the team's avatars, with the main agent first
+- **middle:** the selected agent's panel
+- **right:** the live office
+
+For the **main agent**, the panel has tabs:
+- **Chat:** you say what you need in plain words. It replies with a plan ("Creator Agent writes 2 posts; Scheduler Agent schedules them after step 1"), the defaults it assumed, and what happens next. A bar above the input shows "Team is working on: … 1/2 done".
+- **Tasks:** the current plan as steps, each with its agent, status (Running / Scheduled / Done) and "after step N". Pause or cancel the plan.
+- **Computer:** live tool activity and logs, from our existing technical log.
+- **Settings:** its instructions, model and runtime.
+
+For a **sub-agent**:
+- **Chat:** ask it questions. "Request work" sends the request through the main agent.
+- **History:** what it was assigned and what it delivered.
+- **Settings.**
+
+### How the main agent fits our engine (no new engine)
+1. **Plan:** the main agent is an ordinary agent with a runtime and model, plus a *planner* skill and instructions. Its answer must include a **plan** in a fixed format: steps with who / what / after which step / needs approval. We validate it, and steps can only name agents in the workspace's team.
+2. **Turn the plan into a workflow:** it becomes a step-list workflow, using the `buildGraphFromSteps` we already have. Everything downstream is unchanged: events, office, approvals, cost caps, replay.
+3. **Combine:** the last step always belongs to the main agent. It merges the sub-agents' outputs (our merge/synthesis node) and writes the answer back into the chat.
+4. **Decide:** after the results, the main agent may propose a follow-up plan, for example "the draft failed review; redo step 2 with this note". That is a new plan in the same chat thread, each one a run.
+5. **Run or ask first:** you see the plan and click **Run plan**. A workspace setting "run plans automatically" can skip the click, but only within its cost cap. Send and spend steps always ask.
+6. **Free to try:** on the practice runtime the main agent produces a simple, predictable plan, so the whole flow can be tried without spending anything.
+7. **Save:** a good plan can be saved as a **Workflow** and reused with one click.
+
+### Data changes
+- **Workspace** = today's **Team**, grown up: name, goal, office style, members, vault, defaults, the main agent, chat threads, runs, outside agents. Existing teams become workspaces automatically.
+- **Chat threads** are stored like everything else: messages plus links to the runs they started.
+- The agent library and skills stay shared between workspaces.
+
+
 Status: **proposal for discussion**, nothing built. Reference: multica-ai/multica at `16ce2df` (2026-11-04), design only, no code (see reference-review.md §7).
 
 ## How Multica groups things
