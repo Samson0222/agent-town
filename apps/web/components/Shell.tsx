@@ -85,7 +85,12 @@ export function Shell({ children }: { children: ReactNode }) {
             ))}
           </nav>
         </header>
-        <main className="mx-auto w-full max-w-[1500px] flex-1 px-4 py-6 md:px-8 md:py-8">{children}</main>
+        {path.startsWith("/office") ? (
+          // The office is a full-bleed stage: no page padding, fills the whole viewport beside the sidebar.
+          <main className="h-[calc(100vh-57px)] min-h-[480px] w-full flex-1 md:h-screen">{children}</main>
+        ) : (
+          <main className="mx-auto w-full max-w-[1500px] flex-1 px-4 py-6 md:px-8 md:py-8">{children}</main>
+        )}
       </div>
     </div>
   );

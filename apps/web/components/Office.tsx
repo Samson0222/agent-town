@@ -32,7 +32,7 @@ const PILL: Record<AgentStatus, { text: (p: OfficePerson) => string; bg: string;
   failed: { text: () => "Something went wrong", bg: "#fee2e2", fg: "#b91c1c" },
 };
 
-export function Office({ people, onAgentClick, selectedId, height = 704 }: { people: OfficePerson[]; onAgentClick?: (id: string) => void; selectedId?: string | null; height?: number }) {
+export function Office({ people, onAgentClick, selectedId, height = 704 }: { people: OfficePerson[]; onAgentClick?: (id: string) => void; selectedId?: string | null; height?: number | string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const officeRef = useRef<PixelOffice | null>(null);
   const tagsRef = useRef<HTMLDivElement>(null);
