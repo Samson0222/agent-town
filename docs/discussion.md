@@ -2,6 +2,21 @@
 
 Newest first. Record decisions and open points from each session.
 
+## 2026-11-04 — Keep the name "Workflows"; one prioritised roadmap
+
+- **Name:** the user prefers **Workflows** over "Playbooks". Workflows become saved plans that the main agent can reuse.
+- **Roadmap:** everything still open is now in one ordered roadmap at the top of docs/plan.md:
+  1. Workspaces
+  2. Main agent
+  3. Make it real (OpenCode)
+  4. Inbox, Usage and Runtimes
+  5. Squads and per-workspace access
+  6. Saved workflows
+  7. Real tools (MCP, OpenConnector, desktop)
+  8. Claude Code
+  9. Later
+- **Waiting for:** the user to confirm the order.
+
 ## 2026-11-04 — Workspace / main agent: user decisions
 
 - **Plans:** a Run plan button plus an auto-run switch, within the cost cap.

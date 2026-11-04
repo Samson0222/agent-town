@@ -8,6 +8,8 @@ Update this file whenever the current phase, active feature, or implementation s
 
 ## Current Goal
 
+- 2026-11-04: New direction agreed: workspaces plus a main agent (docs/ux-proposal.md). The prioritised roadmap is at the top of docs/plan.md. Waiting for the user to confirm the order before phase 1 (Workspaces).
+
 - 2026-11-04: Order approved: (1) office upgrades ✅ → (2) hosted access on **devsam.my** ✅ built (switching it on is the user's step: docs/hosting-setup.md) → (3) 2D/3D switch ✅ → (4) external agents reporting in ✅.
 
 - Waiting for the user's review. Next candidates: the first real OpenCode run (needs the user's go-ahead: it spends credit), the permission-reply contract addition, then M3 (Claude Code adapter).

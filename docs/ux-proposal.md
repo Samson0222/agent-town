@@ -10,7 +10,7 @@
 | Running plans | **Run plan** button, plus an **auto-run** switch that works only within the cost cap |
 | Teams inside a workspace | **Several squads per workspace**, as in Multica (see below) |
 | Main agent | **One per workspace**: built in, renamable, with its own model and runtime. It can't be deleted and sits above the squads. |
-| Workflows | Proposed: rename to **Playbooks**, saved plans the main agent can reuse (see below). Waiting for the user's OK. |
+| Workflows | **Keep the name "Workflows"** (user's choice). They become saved plans the main agent can reuse (see below). |
 | Office styles | **Later.** For now the creation step offers the existing 2D office and 3D town. |
 | Hosted access | **Invite per workspace**, with a role per workspace. The owner sees everything. |
 
@@ -22,11 +22,11 @@
   1. squads as groups the main agent can see and route to (it names agents, guided by the squads)
   2. squad leads planning their own part (nested plans)
 
-### Playbooks (today's Workflows)
-- **Save:** any finished plan can be saved as a playbook.
-- **Reuse:** the main agent checks the playbooks first ("use *Weekly report*"), and you can start one directly.
-- **Edit:** a playbook opens in the step list, with the graph editor as an advanced option.
-- **Later:** playbooks are what Schedules will run.
+### Workflows as saved plans
+- **Save:** any finished plan can be saved as a workflow.
+- **Reuse:** the main agent checks the workflows first ("use *Weekly report*"), and you can start one directly.
+- **Edit:** a workflow opens in the step list, with the graph editor as an advanced option.
+- **Later:** workflows are what Schedules will run.
 - **Menu:** keep it under Work rather than Settings, because it's something you use, not a configuration.
 
 ### From the latest screenshots
