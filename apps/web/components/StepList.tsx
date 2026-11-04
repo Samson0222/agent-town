@@ -4,6 +4,7 @@ import { ArrowDown, ArrowUp, Braces, CheckCircle2, GitFork, Hand, ListOrdered, N
 import { buildGraphFromSteps, newStepId, parseWorkflow, type SimpleStep, type Team, type Workflow, type WorkflowIssue } from "@agent-town/core";
 import { FlowGraph } from "./FlowGraph";
 import { Avatar } from "./ui";
+import { useDialogs } from "@/components/Dialogs";
 
 /**
  * Step-list mode: the default way to build a workflow. Each step has WHO and WHAT,
@@ -25,6 +26,7 @@ export function StepListMode({
   onAdvanced: () => void;
   onJson: () => void;
 }) {
+  const { confirm } = useDialogs();
   const [view, setView] = useState<"steps" | "graph">("steps");
   const steps = wf.simple?.steps ?? [];
   const agents = team?.agents ?? [];
@@ -77,8 +79,8 @@ export function StepListMode({
           <span className="muted text-xs">The graph is generated from these steps.</span>
           <button
             className="btn btn-sm btn-ghost ml-auto"
-            onClick={() => {
-              if (!confirm("Edit this workflow as a graph (advanced)? You'll be able to add decisions, tool calls and custom loops, but the step list can no longer edit it.")) return;
+            onClick={async () => {
+              if (!(await confirm({ title: "Edit as a graph?", message: "You'll be able to add decisions, tool calls and custom loops, but the step list can no longer edit this workflow.", confirmLabel: "Edit as graph" }))) return;
               // Keep the graph generated from the current (maybe unsaved) steps, then drop the list.
               update({ ...preview, simple: undefined });
               onAdvanced();

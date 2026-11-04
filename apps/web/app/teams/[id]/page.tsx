@@ -8,6 +8,7 @@ import { api, errorText, type RuntimeInfo } from "@/lib/api";
 import { AgentStatusChip, Avatar } from "@/components/ui";
 import { useMe } from "@/lib/me";
 import { useReporters } from "@/lib/reporters";
+import { useDialogs } from "@/components/Dialogs";
 
 /** Team = a set of agents picked from the shared Agents list, plus a vault and defaults. */
 export default function TeamEditor() {
@@ -219,6 +220,7 @@ export default function TeamEditor() {
  */
 function OutsideAgents({ teamId }: { teamId: string }) {
   const { me } = useMe();
+  const { confirm } = useDialogs();
   const list = useReporters(teamId, 4000);
   const [name, setName] = useState("");
   const [look, setLook] = useState(0);
@@ -237,12 +239,12 @@ function OutsideAgents({ teamId }: { teamId: string }) {
     }
   };
   const rotate = async (id: string, botName: string) => {
-    if (!confirm(`Make a new token for ${botName}? The old one stops working.`)) return;
+    if (!(await confirm({ title: `New token for ${botName}?`, message: "The old token stops working straight away.", confirmLabel: "Make new token" }))) return;
     const r = await api<{ token: string }>(`/api/reporters/${encodeURIComponent(id)}/token`, { method: "POST" });
     setShown({ name: botName, token: r.token });
   };
   const remove = async (id: string, botName: string) => {
-    if (!confirm(`Remove ${botName} from the office?`)) return;
+    if (!(await confirm({ title: `Remove ${botName}?`, message: "It leaves the office and its token stops working.", confirmLabel: "Remove", danger: true }))) return;
     await api(`/api/reporters/${encodeURIComponent(id)}`, { method: "DELETE" });
   };
 

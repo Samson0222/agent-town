@@ -2,6 +2,25 @@
 
 Newest first. Record decisions and open points from each session.
 
+## 2026-11-04 — Merged `claude/nice-brown-bqz4fe` into this branch
+
+At the user's request, merged the other session's branch. It had split off after the skills/avatars commit and adds in-app dialogs instead of the browser's, a collapsible sidebar, a full-screen office stage with floating panels, and a Skills pop-up fix.
+
+**Conflicts resolved:**
+- **Shell:** kept both. Their collapsible sidebar plus our login (`MeProvider`), the People link, the account line and the "not invited" screen. The office stays full-bleed.
+- **Office page:** kept their full-screen stage and added ours:
+  - people from `officePeople(state)` (meetings, statuses after a run ends)
+  - outside agents in the roster and the office
+  - the Simulated chip
+  - `data-needs` on "Give them work"
+- **Office component:** our 2D/3D engine switch plus their `height="100%"`. New prop `controlsAt="bottom-center"`, because their floating panels cover the top corners. The 2D/3D switch and Simulated chip sit at the bottom centre on the office page.
+- **Skills pop-ups:** their sticky footer plus our `data-needs`.
+- **globals.css:** kept both.
+
+**Follow-up:** our new pop-ups (remove a person, new token or remove an outside agent) used the browser's `confirm`. They now use the in-app dialogs, so the whole app uses only in-app pop-ups.
+
+**Checked:** all tests, the type-check and the browser (office stage in 2D and 3D, sidebar collapse, People, team page dialog, skills pop-up). No console errors and no browser pop-ups.
+
 ## 2026-11-04 — Item 4 done: outside agents report into the office
 
 - **Who:** agents running outside Agent Town (Codex, Grok bots, scripts) are added per team on the team page, by the owner only.

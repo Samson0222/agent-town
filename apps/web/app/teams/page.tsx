@@ -6,6 +6,7 @@ import { Copy, LayoutTemplate, Pencil, Plus, Trash2, Users } from "lucide-react"
 import type { Team } from "@agent-town/core";
 import { ApiError, api, errorText, formatUsd } from "@/lib/api";
 import { Avatar, EmptyState, PageHeader } from "@/components/ui";
+import { useDialogs } from "@/components/Dialogs";
 
 interface TemplateInfo {
   id: string;
@@ -15,6 +16,7 @@ interface TemplateInfo {
 }
 
 export default function TeamsPage() {
+  const { confirm, prompt } = useDialogs();
   const router = useRouter();
   const [teams, setTeams] = useState<Team[] | null>(null);
   const [templates, setTemplates] = useState<TemplateInfo[]>([]);
@@ -32,7 +34,7 @@ export default function TeamsPage() {
   }, []);
 
   async function create() {
-    const name = prompt("Name your new team", "My team");
+    const name = await prompt({ title: "Name your new team", label: "Team name", defaultValue: "My team" });
     if (!name) return;
     try {
       const t = await api<Team>("/api/teams", { json: { name } });
@@ -43,13 +45,13 @@ export default function TeamsPage() {
   }
 
   async function remove(t: Team) {
-    if (!confirm(`Delete team "${t.name}"?`)) return;
+    if (!(await confirm({ title: "Delete team?", message: `"${t.name}" will be removed.`, confirmLabel: "Delete", danger: true }))) return;
     try {
       await api(`/api/teams/${t.id}`, { method: "DELETE" });
     } catch (e) {
       if (e instanceof ApiError && e.status === 409) {
         const wfs = (e.details as { workflows: string[] }).workflows;
-        if (confirm(`"${t.name}" is used by ${wfs.length} workflow(s): ${wfs.join(", ")}.\nDelete the team AND those workflows?`)) {
+        if (await confirm({ title: "Team is in use", message: `"${t.name}" is used by ${wfs.length} workflow(s): ${wfs.join(", ")}.\nDelete the team AND those workflows?`, confirmLabel: "Delete both", danger: true })) {
           await api(`/api/teams/${t.id}?force=1`, { method: "DELETE" });
         }
       } else setError(errorText(e));

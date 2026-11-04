@@ -168,3 +168,21 @@ label.field > .input, label.field > select, label.field > textarea { margin-top:
 /* Hosted access: hide actions a role can't use (the server refuses them too) */
 [data-role="viewer"] [data-needs] { display: none !important; }
 [data-role="operator"] [data-needs="owner"] { display: none !important; }
+
+/* Floating panels over the full-screen office (always dark glass, whatever the theme). */
+.glass {
+  background: rgba(15, 17, 32, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  color: #eef0ff;
+  backdrop-filter: blur(14px) saturate(1.2);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.35);
+}
+.glass .muted { color: rgba(226, 229, 255, 0.62); }
+.glass-btn {
+  display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; border-radius: 10px;
+  font-size: 13px; font-weight: 600; color: #eef0ff; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.12); cursor: pointer;
+}
+.glass-btn:hover { background: rgba(255,255,255,.16); }
+.glass-select { height: 34px; border-radius: 10px; padding: 0 10px; font-size: 13px; font-weight: 600; color: #eef0ff; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.12); }
+.glass-select option { color: #111; }

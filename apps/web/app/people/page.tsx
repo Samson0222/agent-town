@@ -4,6 +4,7 @@ import { Trash2, UserPlus } from "lucide-react";
 import { api, errorText, formatUsd } from "@/lib/api";
 import { useMe } from "@/lib/me";
 import { PageHeader } from "@/components/ui";
+import { useDialogs } from "@/components/Dialogs";
 
 interface Person {
   email: string;
@@ -21,6 +22,7 @@ const ROLE_TEXT: Record<Person["role"], string> = {
 
 export default function PeoplePage() {
   const { me } = useMe();
+  const { confirm } = useDialogs();
   const [people, setPeople] = useState<Person[] | null>(null);
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<"operator" | "viewer">("viewer");
@@ -52,7 +54,7 @@ export default function PeoplePage() {
     }
   };
   const remove = async (p: Person) => {
-    if (!confirm(`Remove ${p.email}?`)) return;
+    if (!(await confirm({ title: `Remove ${p.email}?`, message: "They can't use Agent Town any more. Also remove them from the Cloudflare Access policy.", confirmLabel: "Remove", danger: true }))) return;
     await api(`/api/people/${encodeURIComponent(p.email)}`, { method: "DELETE" });
     await load();
   };

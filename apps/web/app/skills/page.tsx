@@ -98,9 +98,9 @@ export default function SkillsPage() {
       </div>
 
       {mode && (
-        <div className="drawer-backdrop flex items-start justify-center overflow-auto p-4 sm:items-center" onClick={() => setMode(null)}>
-          <div className="panel w-full max-w-2xl" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-start justify-between border-b p-5" style={{ borderColor: "var(--line)" }}>
+        <div className="drawer-backdrop flex items-center justify-center p-4" onClick={() => setMode(null)}>
+          <div className="panel flex max-h-full w-full max-w-2xl flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="flex shrink-0 items-start justify-between border-b p-5" style={{ borderColor: "var(--line)" }}>
               <div>
                 <h2 className="text-lg font-semibold">New skill</h2>
                 <p className="muted text-sm">{mode === "choose" ? "Choose how you want to add a skill." : MODE_TITLE[mode]}</p>
@@ -109,7 +109,7 @@ export default function SkillsPage() {
                 <X size={18} />
               </button>
             </div>
-            <div className="p-5">
+            <div className="min-h-0 flex-1 overflow-y-auto p-5">
               {mode === "choose" && (
                 <div className="space-y-2">
                   <Choice icon={<PenLine size={18} />} title="Write one" text="Start from a blank SKILL.md and write your own steps." onClick={() => setMode("write")} />
@@ -184,7 +184,7 @@ function WriteSkill({ agents, onDone }: { agents: AgentTemplate[]; onDone: (id?:
       </label>
       <SkillScopePicker value={scope} onChange={setScope} agents={agents} />
       {err && <p className="text-sm" style={{ color: "var(--bad)" }}>{err}</p>}
-      <div className="flex justify-end">
+      <div className="sticky -bottom-5 z-10 -mx-5 -mb-5 flex justify-end border-t px-5 py-3" style={{ background: "var(--panel)", borderColor: "var(--line)" }}>
         <button data-needs="edit" className="btn btn-primary" disabled={!name.trim()} onClick={save}>
           Save skill
         </button>
@@ -272,7 +272,7 @@ function FolderSkill({ agents, onDone }: { agents: AgentTemplate[]; onDone: (id?
       ))}
       {folders.length > 0 && <SkillScopePicker value={scope} onChange={setScope} agents={agents} />}
       {err && <p className="text-sm" style={{ color: "var(--bad)" }}>{err}</p>}
-      <div className="flex justify-end">
+      <div className="sticky -bottom-5 z-10 -mx-5 -mb-5 flex justify-end border-t px-5 py-3" style={{ background: "var(--panel)", borderColor: "var(--line)" }}>
         <button data-needs="edit" className="btn btn-primary" disabled={!folders.length} onClick={save}>
           Import {folders.length > 1 ? `${folders.length} skills` : "skill"}
         </button>
@@ -380,7 +380,7 @@ function GithubSkill({ agents, onDone }: { agents: AgentTemplate[]; onDone: (id?
         </div>
       )}
       {err && <p className="text-sm" style={{ color: "var(--bad)" }}>{err}</p>}
-      <div className="flex justify-end">
+      <div className="sticky -bottom-5 z-10 -mx-5 -mb-5 flex justify-end border-t px-5 py-3" style={{ background: "var(--panel)", borderColor: "var(--line)" }}>
         <button data-needs="edit" className="btn btn-primary" disabled={!preview} onClick={install}>
           Install
         </button>
@@ -428,7 +428,7 @@ function StarterSkills({ agents, onDone }: { agents: AgentTemplate[]; onDone: (i
       </div>
       {picked && <SkillScopePicker value={scope} onChange={setScope} agents={agents} />}
       {err && <p className="text-sm" style={{ color: "var(--bad)" }}>{err}</p>}
-      <div className="flex justify-end">
+      <div className="sticky -bottom-5 z-10 -mx-5 -mb-5 flex justify-end border-t px-5 py-3" style={{ background: "var(--panel)", borderColor: "var(--line)" }}>
         <button data-needs="edit" className="btn btn-primary" disabled={!picked} onClick={install}>
           Install {picked?.name ?? ""}
         </button>

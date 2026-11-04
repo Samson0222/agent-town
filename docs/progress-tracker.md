@@ -102,6 +102,8 @@ Update this file whenever the current phase, active feature, or implementation s
 
 ## Session Notes
 
+- 2026-11-04: Merged `claude/nice-brown-bqz4fe` (in-app dialogs, collapsible sidebar, full-screen office stage) into `claude/wonderful-goodall-t2hsgx`; this branch now has everything.
+
 - 2026-11-04: Added root `AGENTS.md` (rules for coding agents) and `CLAUDE.md` (imports it).
 
 - 2026-11-04: Fixes from user testing: GitHub skill install now accepts a repo link (auto-finds the skill or offers a choice); every agent gets an office character, and the agent page has a "Change look" shortcut.

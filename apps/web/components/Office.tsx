@@ -46,12 +46,15 @@ export function Office({
   selectedId,
   height = 704,
   simulated,
+  controlsAt = "top-right",
 }: {
   people: OfficePerson[];
   onAgentClick?: (id: string) => void;
   selectedId?: string | null;
-  height?: number;
+  height?: number | string;
   simulated?: boolean;
+  /** Where the 2D/3D switch and the "Simulated" chip sit (pages with floating panels use the bottom). */
+  controlsAt?: "top-right" | "bottom-center";
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const officeRef = useRef<OfficeEngine | null>(null);
@@ -141,25 +144,29 @@ export function Office({
         }}
         aria-label="Office: click a person to see their task, log and output"
       />
-      <div className="absolute right-3 top-3 z-10 flex rounded-full p-0.5 text-[11px] font-semibold" style={{ background: "rgba(17,19,31,.72)" }} role="group" aria-label="Office view">
-        {(["2d", "3d"] as const).map((m) => (
-          <button
-            key={m}
-            type="button"
-            onClick={() => setMode(m)}
-            aria-pressed={mode === m}
-            className="rounded-full px-2.5 py-1"
-            style={{ background: mode === m ? "#fff" : "transparent", color: mode === m ? "#11131f" : "#cbd5e1" }}
-          >
-            {m.toUpperCase()}
-          </button>
-        ))}
+      <div
+        className={`absolute z-10 flex items-center gap-2 ${controlsAt === "bottom-center" ? "bottom-4 left-1/2 -translate-x-1/2" : "right-3 top-3"}`}
+      >
+        {simulated && (
+          <span className="pointer-events-none rounded-full px-2.5 py-1 text-[11px] font-semibold" style={{ background: "rgba(17,19,31,.72)", color: "#fde68a" }}>
+            Simulated
+          </span>
+        )}
+        <div className="flex rounded-full p-0.5 text-[11px] font-semibold" style={{ background: "rgba(17,19,31,.72)" }} role="group" aria-label="Office view">
+          {(["2d", "3d"] as const).map((m) => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => setMode(m)}
+              aria-pressed={mode === m}
+              className="rounded-full px-2.5 py-1"
+              style={{ background: mode === m ? "#fff" : "transparent", color: mode === m ? "#11131f" : "#cbd5e1" }}
+            >
+              {m.toUpperCase()}
+            </button>
+          ))}
+        </div>
       </div>
-      {simulated && (
-        <span className="pointer-events-none absolute left-3 top-3 rounded-full px-2.5 py-1 text-[11px] font-semibold" style={{ background: "rgba(17,19,31,.72)", color: "#fde68a" }}>
-          Simulated
-        </span>
-      )}
       <div ref={tagsRef} className="pointer-events-none absolute inset-0">
         {people.map((p) => {
           const act = officeActivity(p.status, p.tool);

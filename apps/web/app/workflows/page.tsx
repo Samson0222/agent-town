@@ -7,8 +7,10 @@ import type { Team, Workflow } from "@agent-town/core";
 import { api, download, errorText } from "@/lib/api";
 import { Avatar, EmptyState, PageHeader } from "@/components/ui";
 import { NODE_META } from "@/components/FlowGraph";
+import { useDialogs } from "@/components/Dialogs";
 
 export default function WorkflowsPage() {
+  const { confirm } = useDialogs();
   const router = useRouter();
   const [workflows, setWorkflows] = useState<Workflow[] | null>(null);
   const [teams, setTeams] = useState<Team[]>([]);
@@ -151,7 +153,7 @@ export default function WorkflowsPage() {
                   className="btn btn-sm btn-danger"
                   title="Delete"
                   onClick={async () => {
-                    if (!confirm(`Delete workflow "${w.name}"?`)) return;
+                    if (!(await confirm({ title: "Delete workflow?", message: `"${w.name}" will be removed.`, confirmLabel: "Delete", danger: true }))) return;
                     await api(`/api/workflows/${w.id}`, { method: "DELETE" }).catch((e) => setError(errorText(e)));
                     void load();
                   }}
