@@ -8,7 +8,7 @@ Update this file whenever the current phase, active feature, or implementation s
 
 ## Current Goal
 
-- 2026-11-04: Order approved: (1) office upgrades ✅ → (2) hosted access on **devsam.my** ✅ built (switching it on is the user's step: docs/hosting-setup.md) → (3) 2D/3D switch → (4) external agents reporting in.
+- 2026-11-04: Order approved: (1) office upgrades ✅ → (2) hosted access on **devsam.my** ✅ built (switching it on is the user's step: docs/hosting-setup.md) → (3) 2D/3D switch ✅ → (4) external agents reporting in.
 
 - Waiting for the user's review. Next candidates: the first real OpenCode run (needs the user's go-ahead: it spends credit), the permission-reply contract addition, then M3 (Claude Code adapter).
 

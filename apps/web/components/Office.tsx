@@ -1,6 +1,7 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { PixelOffice, type OfficeAgent } from "@agent-town/pixel-office";
+import type { Office3DAgent } from "@agent-town/office-3d";
 import { ACTIVITY_LABEL, officeActivity, officeMeetings, officeStatus, type AgentStatus, type OfficeActivity, type RunState } from "@agent-town/core";
 
 /**
@@ -53,7 +54,8 @@ export function Office({
   simulated?: boolean;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const officeRef = useRef<PixelOffice | null>(null);
+  const officeRef = useRef<OfficeEngine | null>(null);
+  const [mode, setMode] = useViewMode();
   const tagsRef = useRef<HTMLDivElement>(null);
   const peopleRef = useRef(people);
   peopleRef.current = people;
@@ -72,14 +74,15 @@ export function Office({
 
   useEffect(() => {
     const canvas = canvasRef.current!;
-    const office = new PixelOffice(canvas, {
-      onFrame: () => {
+    let office: OfficeEngine | null = null;
+    let cancelled = false;
+    const onFrame = () => {
         // Move the HTML name tags with the characters (no React re-render per frame).
         const host = tagsRef.current;
         if (!host) return;
         // Stack tags that would overlap (e.g. two people side by side on the sofa).
         const placed: Array<{ x: number; y: number; w: number; h: number }> = [];
-        for (const pos of [...office.labelPositions()].sort((a, b) => b.y - a.y)) {
+        for (const pos of [...(office?.labelPositions() ?? [])].sort((a, b) => b.y - a.y)) {
           const el = host.querySelector<HTMLElement>(`[data-agent="${CSS.escape(pos.id)}"]`);
           if (!el) continue;
           const w = el.offsetWidth || 60;
@@ -93,20 +96,34 @@ export function Office({
           placed.push({ x: pos.x, y, w, h });
           el.style.transform = `translate(${Math.round(pos.x)}px, ${Math.round(y)}px) translate(-50%, -100%)`;
         }
-      },
-    });
-    officeRef.current = office;
-    office.setAgents(toOffice(peopleRef.current));
+    };
+    const start = (engine: OfficeEngine) => {
+      office = engine;
+      officeRef.current = engine;
+      engine.selectedId = selectedRef.current ?? null;
+      engine.setAgents(toOffice(peopleRef.current));
+    };
+    if (mode === "3d") {
+      // Three.js loads only when someone picks 3D.
+      void import("@agent-town/office-3d").then(({ Office3D }) => {
+        if (cancelled) return;
+        if (!Office3D.supported()) return setMode("2d");
+        start(new Office3D(canvas, { onFrame }) as unknown as OfficeEngine);
+      });
+    } else start(new PixelOffice(canvas, { onFrame }) as unknown as OfficeEngine);
     return () => {
-      office.destroy();
+      cancelled = true;
+      office?.destroy();
       officeRef.current = null;
     };
-  }, []);
+  }, [mode, setMode]);
 
   useEffect(() => {
     officeRef.current?.setAgents(toOffice(people));
   }, [people]);
 
+  const selectedRef = useRef(selectedId);
+  selectedRef.current = selectedId;
   useEffect(() => {
     if (officeRef.current) officeRef.current.selectedId = selectedId ?? null;
   }, [selectedId]);
@@ -114,15 +131,30 @@ export function Office({
   return (
     <div className="relative w-full overflow-hidden" style={{ height, background: "radial-gradient(ellipse at center, #2b2f4a 0%, #11131f 120%)" }}>
       <canvas
+        key={mode}
         ref={canvasRef}
         className="block h-full w-full cursor-pointer"
-        style={{ imageRendering: "pixelated" }}
+        style={{ imageRendering: mode === "2d" ? "pixelated" : undefined }}
         onClick={(e) => {
           const id = officeRef.current?.agentAt(e.clientX, e.clientY);
           if (id) onAgentClick?.(id);
         }}
         aria-label="Office: click a person to see their task, log and output"
       />
+      <div className="absolute right-3 top-3 z-10 flex rounded-full p-0.5 text-[11px] font-semibold" style={{ background: "rgba(17,19,31,.72)" }} role="group" aria-label="Office view">
+        {(["2d", "3d"] as const).map((m) => (
+          <button
+            key={m}
+            type="button"
+            onClick={() => setMode(m)}
+            aria-pressed={mode === m}
+            className="rounded-full px-2.5 py-1"
+            style={{ background: mode === m ? "#fff" : "transparent", color: mode === m ? "#11131f" : "#cbd5e1" }}
+          >
+            {m.toUpperCase()}
+          </button>
+        ))}
+      </div>
       {simulated && (
         <span className="pointer-events-none absolute left-3 top-3 rounded-full px-2.5 py-1 text-[11px] font-semibold" style={{ background: "rgba(17,19,31,.72)", color: "#fde68a" }}>
           Simulated
@@ -162,11 +194,44 @@ export function Office({
   );
 }
 
-function toOffice(people: OfficePerson[]): OfficeAgent[] {
+/** What both office views (2D pixel office, 3D office) accept: the same people, the same rules. */
+interface OfficeEngine {
+  selectedId: string | null;
+  setAgents(agents: Array<OfficeAgent & Office3DAgent>): void;
+  agentAt(clientX: number, clientY: number): string | null;
+  labelPositions(): Array<{ id: string; x: number; y: number }>;
+  destroy(): void;
+}
+
+function toOffice(people: OfficePerson[]): Array<OfficeAgent & Office3DAgent> {
   return people.map((p) => {
     const m = /^char-(\d+)$/.exec(p.sprite ?? "");
-    return { id: p.id, name: p.name, status: p.status, tool: p.tool, look: m ? Number(m[1]) : undefined, meetWith: p.meetWith };
+    return { id: p.id, name: p.name, status: p.status, tool: p.tool, look: m ? Number(m[1]) : undefined, meetWith: p.meetWith, color: p.color };
   });
+}
+
+const VIEW_KEY = "agent-town.office-view";
+
+/** 2D or 3D, remembered per browser. Phones start in 2D (lighter). */
+function useViewMode(): ["2d" | "3d", (m: "2d" | "3d") => void] {
+  const [mode, setModeState] = useState<"2d" | "3d">("2d");
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(VIEW_KEY);
+      if (saved === "3d" && window.innerWidth >= 640) setModeState("3d");
+    } catch {
+      /* storage blocked: stay 2D */
+    }
+  }, []);
+  const setMode = useCallback((m: "2d" | "3d") => {
+    setModeState(m);
+    try {
+      localStorage.setItem(VIEW_KEY, m);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+  return [mode, setMode];
 }
 
 /** Office people for a run: statuses, current tool and meetings, all from the projected state. */

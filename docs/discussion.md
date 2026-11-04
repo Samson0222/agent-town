@@ -2,6 +2,29 @@
 
 Newest first. Record decisions and open points from each session.
 
+## 2026-11-04 — Item 3 done: 2D / 3D office switch
+
+- **New package `packages/office-3d`:**
+  - **Rendering:** Three.js **0.186.1** (MIT; pinned to a September release, not the newest). Every model is our own block-style geometry: no outside models or art, so there is nothing to license.
+  - **Same interface as the pixel office** (`setAgents`, `agentAt`, `labelPositions`, `selectedId`, `destroy`), so `Office.tsx` picks an engine and keeps the same name tags, pills, stacking and click handling.
+  - **Same input:** both views get the people from `officePeople(state)` (core helpers).
+- **Pure, tested logic** (7 tests, no WebGL needed):
+  - `layout.ts`: desks in rows of three (more rows as the team grows), a corridor and a lounge with three sofas around a coffee table.
+  - `crowd.ts`: the same behaviour rules as 2D.
+    - Working or thinking people sit and type at their own desk; waiting people sit with a "Needs you" tag.
+    - Meetings: both walk to neighbouring sofa seats.
+    - Idle people stroll and rest at their desk; finishing a step gives a hop.
+    - Nobody strolls while working.
+    - Walking follows lanes and the corridor, so no pathfinding is needed.
+- **Details:**
+  - monitors glow blue while typing and amber while waiting
+  - a selection ring under the selected person
+  - an "AGENT TOWN" neon sign
+  - desks face the camera, so faces are visible rather than chair backs
+- **Switch:** a 2D / 3D toggle in the office's top-right corner, remembered per browser (localStorage).
+  - Phones always start in 2D.
+  - 3D loads Three.js only when chosen, and falls back to 2D if WebGL isn't available.
+
 ## 2026-11-04 — Item 2 done: hosted access (built, not switched on)
 
 **Built** (docs/hosting.md; Windows steps in docs/hosting-setup.md):

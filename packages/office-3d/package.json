@@ -1,0 +1,22 @@
+{
+  "name": "@agent-town/office-3d",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Agent Town's 3D office view (Three.js). Same input as the 2D pixel office.",
+  "license": "MIT",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "three": "0.186.1"
+  },
+  "devDependencies": {
+    "@types/three": "0.186.0",
+    "vitest": "5.1.0"
+  }
+}

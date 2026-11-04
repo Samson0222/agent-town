@@ -18,7 +18,7 @@ const csp = [
 ].join("; ");
 
 const config: NextConfig = {
-  transpilePackages: ["@agent-town/core", "@agent-town/pixel-office"],
+  transpilePackages: ["@agent-town/core", "@agent-town/pixel-office", "@agent-town/office-3d"],
   reactStrictMode: true,
   poweredByHeader: false,
   async headers() {

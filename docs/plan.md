@@ -39,13 +39,13 @@ Small and view-only; no security impact. See reference-review.md §9.
 
 ## 2D / 3D office switch
 The office is only a view of `reduceRunState(events)`, so a 3D view can sit beside the 2D one and use the same input.
-- ⬜ An `OfficeView` interface in the web app, the input the current pixel office already takes (agents, statuses, current tool, seats). The 2D pixel office becomes one implementation.
-- ⬜ A 3D implementation with Three.js (MIT): a block-style isometric office (desks, meeting table, lounge) with our own simple low-poly characters, coloured with each agent's look colour.
+- ✅ An `OfficeView` interface in the web app, the input the current pixel office already takes (agents, statuses, current tool, seats). The 2D pixel office becomes one implementation.
+- ✅ A 3D implementation with Three.js (MIT): a block-style isometric office (desks, meeting table, lounge) with our own simple low-poly characters, coloured with each agent's look colour.
   - no art copied from the post
   - if we use outside models, only CC0 ones, recorded in reference-review.md
-- ⬜ Same behaviour rules in both views: always in the office, working = seated and typing, waiting = seated with "…", idle and done stroll
-- ⬜ A 2D / 3D toggle on the Office and run pages, remembered per browser. Phones default to 2D (lighter); 3D falls back to 2D if WebGL is unavailable.
-- ⬜ Browser check for both views, plus a test that both get the same state from the same events
+- ✅ Same behaviour rules in both views: always in the office, working = seated and typing, waiting = seated with "…", idle and done stroll
+- ✅ A 2D / 3D toggle on the Office and run pages, remembered per browser. Phones default to 2D (lighter); 3D falls back to 2D if WebGL is unavailable.
+- ✅ Browser check for both views, plus a test that both get the same state from the same events
 
 ## Hosted access — public, logged-in users only (design: [hosting.md](hosting.md))
 Your PC plus a Cloudflare Tunnel, Cloudflare Access login, and Agent Town roles (owner / operator / viewer).
