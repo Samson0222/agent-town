@@ -40,6 +40,40 @@ export interface RunRow {
 
 export type RunPurpose = "work" | "plan" | "chat";
 
+export type PlanStatus = "planning" | "proposed" | "running" | "done" | "failed" | "cancelled" | "answered" | "error";
+export interface PlanRow {
+  id: string;
+  teamId: string;
+  /** #1, #2… per workspace. */
+  number: number;
+  request: string;
+  status: PlanStatus;
+  plan?: import("@agent-town/core").Plan;
+  planningRunId?: string;
+  runId?: string;
+  /** Saved as this workflow. */
+  workflowId?: string;
+  /** The main agent's combined reply (its report). */
+  reply?: string;
+  error?: string;
+  startedBy?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  teamId: string;
+  /** The thread: which agent this conversation is with. */
+  agentId: string;
+  role: "person" | "agent";
+  text: string;
+  planId?: string;
+  runId?: string;
+  author?: string;
+  createdAt: string;
+}
+
 export interface UsageRow {
   key: string;
   usd: number;
@@ -140,6 +174,20 @@ export class Store {
         status TEXT, summary TEXT, with_id TEXT, reported_at TEXT
       );
     `);
+    this.db.exec(`
+      -- The main agent's plans (one per request) and chat threads (one per agent per workspace).
+      CREATE TABLE IF NOT EXISTS plans (
+        id TEXT PRIMARY KEY, team_id TEXT NOT NULL, number INTEGER NOT NULL, request TEXT NOT NULL,
+        status TEXT NOT NULL, plan_json TEXT, planning_run_id TEXT, run_id TEXT, workflow_id TEXT,
+        reply TEXT, error TEXT, started_by TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS plans_team ON plans(team_id, number);
+      CREATE TABLE IF NOT EXISTS messages (
+        id TEXT PRIMARY KEY, team_id TEXT NOT NULL, agent_id TEXT NOT NULL, role TEXT NOT NULL,
+        text TEXT NOT NULL, plan_id TEXT, run_id TEXT, author TEXT, created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS messages_thread ON messages(team_id, agent_id, created_at);
+    `);
     this.db.exec(`CREATE TABLE IF NOT EXISTS dismissed (id TEXT PRIMARY KEY, at TEXT NOT NULL);`);
     this.db.exec(`
       -- People who may use the hosted Agent Town (owner comes from config, not this table).
@@ -148,6 +196,87 @@ export class Store {
         daily_budget_usd REAL, created_at TEXT NOT NULL
       );
     `);
+  }
+
+  // Main agent: plans and chat ---------------------------------------------
+
+  createPlan(p: { id: string; teamId: string; request: string; startedBy?: string }): PlanRow {
+    const n = Number(this.db.prepare("SELECT COALESCE(MAX(number), 0) + 1 AS n FROM plans WHERE team_id = ?").get(p.teamId)?.n ?? 1);
+    const now = new Date().toISOString();
+    this.db
+      .prepare("INSERT INTO plans (id, team_id, number, request, status, started_by, created_at, updated_at) VALUES (?, ?, ?, ?, 'planning', ?, ?, ?)")
+      .run(p.id, p.teamId, n, p.request, p.startedBy ?? null, now, now);
+    return this.getPlan(p.id)!;
+  }
+
+  updatePlan(id: string, patch: Partial<Pick<PlanRow, "status" | "plan" | "planningRunId" | "runId" | "workflowId" | "reply" | "error">>): PlanRow | undefined {
+    const cur = this.getPlan(id);
+    if (!cur) return undefined;
+    const n = { ...cur, ...patch };
+    this.db
+      .prepare("UPDATE plans SET status = ?, plan_json = ?, planning_run_id = ?, run_id = ?, workflow_id = ?, reply = ?, error = ?, updated_at = ? WHERE id = ?")
+      .run(n.status, n.plan ? JSON.stringify(n.plan) : null, n.planningRunId ?? null, n.runId ?? null, n.workflowId ?? null, n.reply ?? null, n.error ?? null, new Date().toISOString(), id);
+    return this.getPlan(id);
+  }
+
+  getPlan(id: string): PlanRow | undefined {
+    const r = this.db.prepare("SELECT * FROM plans WHERE id = ?").get(id);
+    return r ? rowToPlan(r) : undefined;
+  }
+
+  planByRun(runId: string): PlanRow | undefined {
+    const r = this.db.prepare("SELECT * FROM plans WHERE run_id = ? OR planning_run_id = ?").get(runId, runId);
+    return r ? rowToPlan(r) : undefined;
+  }
+
+  listPlans(teamId?: string, limit = 50): PlanRow[] {
+    const rows = teamId
+      ? this.db.prepare("SELECT * FROM plans WHERE team_id = ? ORDER BY number DESC LIMIT ?").all(teamId, limit)
+      : this.db.prepare("SELECT * FROM plans ORDER BY created_at DESC LIMIT ?").all(limit);
+    return rows.map(rowToPlan);
+  }
+
+  addMessage(m: Omit<ChatMessage, "id" | "createdAt">): ChatMessage {
+    const id = crypto.randomUUID();
+    const at = new Date().toISOString();
+    this.db
+      .prepare("INSERT INTO messages (id, team_id, agent_id, role, text, plan_id, run_id, author, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
+      .run(id, m.teamId, m.agentId, m.role, m.text, m.planId ?? null, m.runId ?? null, m.author ?? null, at);
+    return { ...m, id, createdAt: at };
+  }
+
+  messages(teamId: string, agentId: string, limit = 200): ChatMessage[] {
+    return this.db
+      .prepare("SELECT * FROM (SELECT rowid AS rn, * FROM messages WHERE team_id = ? AND agent_id = ? ORDER BY rn DESC LIMIT ?) ORDER BY rn")
+      .all(teamId, agentId, limit)
+      .map((r) => ({
+        id: String(r.id),
+        teamId: String(r.team_id),
+        agentId: String(r.agent_id),
+        role: String(r.role) as ChatMessage["role"],
+        text: String(r.text),
+        planId: r.plan_id ? String(r.plan_id) : undefined,
+        runId: r.run_id ? String(r.run_id) : undefined,
+        author: r.author ? String(r.author) : undefined,
+        createdAt: String(r.created_at),
+      }));
+  }
+
+  /** Step attempts by one agent in one workspace's runs, newest first, with the run's workflow snapshot. */
+  agentHistory(agentId: string, teamId: string, limit = 40): Array<Record<string, unknown> & { workflow: Workflow }> {
+    const cache = new Map<string, Workflow>();
+    return this.db
+      .prepare(
+        `SELECT s.*, r.workflow_name, r.status AS run_status, r.purpose, r.workflow_snapshot FROM step_runs s JOIN runs r ON r.id = s.run_id
+         WHERE s.agent_id = ? AND r.team_id = ? AND r.purpose = 'work' ORDER BY s.started_at DESC LIMIT ?`,
+      )
+      .all(agentId, teamId, limit)
+      .map((r) => {
+        const id = String(r.run_id);
+        if (!cache.has(id)) cache.set(id, parseWorkflow(JSON.parse(String(r.workflow_snapshot))));
+        const { workflow_snapshot: _s, ...rest } = r;
+        return { ...rest, workflow: cache.get(id)! };
+      });
   }
 
   // Inbox notices a person has dismissed ------------------------------------
@@ -659,5 +788,24 @@ function rowToPerson(r: Record<string, unknown>): Person {
     invitedBy: r.invited_by ? String(r.invited_by) : undefined,
     dailyBudgetUsd: r.daily_budget_usd == null ? undefined : Number(r.daily_budget_usd),
     createdAt: String(r.created_at),
+  };
+}
+
+function rowToPlan(r: Record<string, unknown>): PlanRow {
+  return {
+    id: String(r.id),
+    teamId: String(r.team_id),
+    number: Number(r.number),
+    request: String(r.request),
+    status: String(r.status) as PlanStatus,
+    plan: r.plan_json ? JSON.parse(String(r.plan_json)) : undefined,
+    planningRunId: r.planning_run_id ? String(r.planning_run_id) : undefined,
+    runId: r.run_id ? String(r.run_id) : undefined,
+    workflowId: r.workflow_id ? String(r.workflow_id) : undefined,
+    reply: r.reply ? String(r.reply) : undefined,
+    error: r.error ? String(r.error) : undefined,
+    startedBy: r.started_by ? String(r.started_by) : undefined,
+    createdAt: String(r.created_at),
+    updatedAt: String(r.updated_at),
   };
 }

@@ -2,6 +2,36 @@
 
 Newest first. Record decisions and open points from each session.
 
+## 2026-11-04 — Phase 2: the main agent and the AI Agent screen (autonomous; my decisions)
+
+- **Planning is a run, not a hidden call.** The main agent plans in a one-step run (`purpose: "plan"`) and answers a sub-agent chat the same way (`purpose: "chat"`).
+  - *Why:* events, the office ("thinking" at its desk), cost caps, budgets and the no-spend rules all apply with no new engine code.
+  - These runs stay out of the Runs list.
+- **Plan format:** the main agent ends its answer with one fenced ` ```plan ` JSON block containing `reply`, `assumptions`, `steps[{who, title, what, after, needsApproval, reviewBy}]`, or `workflow` to reuse a saved one.
+  - Checked by `parsePlan` in core:
+    - steps may only name the workspace's members or squads, never the main agent
+    - `after` can't point at a later step
+    - at most 8 steps
+  - Text from people or models never becomes a `{{template}}` reference.
+- **Plan → step-list workflow** (`planToSteps` + `buildGraphFromSteps`):
+  - Steps that wait for the same steps run side by side.
+  - `reviewBy` becomes the step list's review loop.
+  - A final **Combine and reply** step always belongs to the main agent. Its output is the reply in the chat and the plan's report.
+- **Practice runtime:** answers planning prompts with a small, predictable plan built from the roster in the prompt:
+  1. first worker
+  2. second worker after step 1, checked by a reviewer if there is one
+
+  A teammate named in the request goes first. That is how **Request work** on a sub-agent works ("For Riley: …").
+- **Auto-run:** a per-workspace switch, used only when the workspace has a cost cap above 0. The run is held to that cap, and send and spend still ask. If auto-start fails (budget, preflight), the plan stays "Ready to run" and the main agent says why.
+- **Screen:**
+  - **left:** avatar strip, main agent first, with a crown
+  - **middle:** tabs. Main agent: Chat · Tasks · Computer · Settings. Sub-agent: Chat · History · Computer · Settings.
+  - **right:** the live office in the workspace's style, with a link to full screen
+  - **Chat:** pending approvals show above the input (the same banner as the run page), plus the "Team is working on … n/m" bar.
+- **Computer tab:** for now, the live tool log of the workspace's latest run (tool calls, results, runtime notes, approvals, saved files). A real browser or desktop waits for phase 7.
+- **Plan statuses:** Planning · Ready to run · Running · Done · Failed · Cancelled · Answered (no work needed) · No plan (the answer couldn't be read; the main agent says why).
+- **Save as workflow** (phase 6) is on every finished plan. The saved workflow keeps the request as its default goal.
+
 ## 2026-11-04 — Phase 1: Workspaces (autonomous session; decisions made on the user's behalf)
 
 - **Workspace = team, grown up.** The `teams` table and `/api/teams` stay. The Team schema gains:

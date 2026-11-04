@@ -269,7 +269,9 @@ export function practicePlan(prompt: string): Plan {
 
   const isReviewer = (r: Row) => /review|qa|editor|check|quality/i.test(r.role);
   const reviewer = rows.find(isReviewer);
-  const workers = rows.filter((r) => r !== reviewer);
+  // Someone named in the request ("For Riley: …", from Request work) goes first.
+  const named = (r: Row) => (r.name && new RegExp(`\\b${r.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(request) ? 0 : 1);
+  const workers = rows.filter((r) => r !== reviewer).sort((a, b) => named(a) - named(b));
   const squad = squads.find((q) => q.name && lower.includes(q.name.toLowerCase()));
   const short = request.length > 90 ? `${request.slice(0, 90)}…` : request;
 

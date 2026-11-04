@@ -34,6 +34,7 @@ import { OpenCodeAdapter, type OpenCodeAdapterOptions } from "@agent-town/adapte
 import { applyAssignment, fetchGithubSkill, isAssigned, isChoices, skillFromFiles, slugify } from "./skills";
 import { AccessVerifier, AuthError, RateLimiter, ROLES, can, type Permission, type Role } from "./auth";
 import { REPORT_MAX_BYTES, hashToken, newToken, parseReport, presence } from "./reports";
+import { UserError, createMainAgent, type LaunchOptions } from "./mainAgent";
 
 export interface AppOptions {
   dbFile: string;
@@ -94,7 +95,11 @@ export function createApp(opts: AppOptions) {
     onEvent: (ev: AgentTownEvent) => {
       store.appendEvent(ev);
       for (const res of sse.get(ev.runId) ?? []) res.write(`id: ${ev.seq}\ndata: ${JSON.stringify(ev)}\n\n`);
-      if (ev.type === "run.completed" || ev.type === "run.failed" || ev.type === "run.stopped") void writeRunSummary(ev.runId).catch(() => undefined);
+      if (ev.type === "run.completed" || ev.type === "run.failed" || ev.type === "run.stopped") {
+        void writeRunSummary(ev.runId).catch(() => undefined);
+        // After this event is stored: the main agent reads the result (and may start the next run).
+        setTimeout(() => void mainAgent.onRunEnded(ev.runId).catch((e) => console.error("main agent:", e)), 0);
+      }
     },
   });
 
@@ -154,6 +159,7 @@ export function createApp(opts: AppOptions) {
   }
   // Teams from before workspaces become workspaces: each gets its main agent.
   store.ensureMainAgents();
+
 
   /** Plans waiting for "Run plan" (filled in by the main agent module). */
   let inboxPlans: () => Array<Record<string, unknown>> = () => [];
@@ -491,6 +497,43 @@ export function createApp(opts: AppOptions) {
     const q = new URL(req.url!, "http://x").searchParams;
     return store.listRuns(Number(q.get("limit")) || 50, { teamId: q.get("teamId") ?? undefined, all: q.get("all") === "1" });
   });
+  /** Start a run with every check: the operator's daily budget, preflight, the vault folder. */
+  async function launch(o: LaunchOptions & { force?: boolean }): Promise<string> {
+    const { wf, team, inputs, me } = o;
+    // Operators spend the owner's credit only within their daily budget.
+    let maxCostUsd: number | undefined;
+    if (me.role === "operator" && spendsCredit(team)) {
+      const left = (me.dailyBudgetUsd ?? 0) - store.spentToday(me.email);
+      if (left <= 0) fail(403, "Your daily budget for real runs is used up — ask the owner to raise it");
+      maxCostUsd = left;
+    }
+    const runId = crypto.randomUUID();
+    const pf = await engine.preflight(wf, team, inputs);
+    if (!pf.ok && !o.force) fail(422, "Preflight failed", pf);
+    store.createRun(runId, wf, team, inputs, o.purpose);
+    if (!me.local) store.setRunStartedBy(runId, me.email);
+    await vault.ensureTeamVault(team.vault);
+    store.setRunVaultDir(runId, DiskVault.runFolder(team.vault, wf.name, runId));
+    await engine.start(wf, team, inputs, { runId, force: o.force, actor: me.local ? undefined : me.email, maxCostUsd });
+    return runId;
+  }
+
+  const mainAgent = createMainAgent({
+    store,
+    launch,
+    stop: async (runId, reason) => {
+      const run = engine.get(runId);
+      if (run && !run.isTerminal()) await run.stop(reason);
+    },
+    liveState: (runId) => (engine.get(runId) && !engine.get(runId)!.isTerminal() ? reduceRunState(store.events(runId)) : undefined),
+    meFor: (email) => {
+      if (!email || email === opts.access?.ownerEmail) return localOwner;
+      const p = store.getPerson(email);
+      return { email, role: p?.role ?? "viewer", local: false, dailyBudgetUsd: p?.dailyBudgetUsd };
+    },
+  });
+  inboxPlans = () => mainAgent.inboxItems();
+
   route(
     "POST",
     "/api/runs",
@@ -498,26 +541,63 @@ export function createApp(opts: AppOptions) {
       const b = (body ?? {}) as { workflowId?: string; inputs?: Record<string, string>; force?: boolean };
       const wf: Workflow = mustWorkflow(b.workflowId ?? "");
       const team = mustTeam(wf.teamId);
-      const inputs = { ...(b.inputs ?? {}) };
-      // Operators spend the owner's credit only within their daily budget.
-      let maxCostUsd: number | undefined;
-      if (me.role === "operator" && spendsCredit(team)) {
-        const left = (me.dailyBudgetUsd ?? 0) - store.spentToday(me.email);
-        if (left <= 0) fail(403, "Your daily budget for real runs is used up — ask the owner to raise it");
-        maxCostUsd = left;
-      }
-      const runId = crypto.randomUUID();
-      const pf = await engine.preflight(wf, team, inputs);
-      if (!pf.ok && !b.force) fail(422, "Preflight failed", pf);
-      store.createRun(runId, wf, team, inputs);
-      if (!me.local) store.setRunStartedBy(runId, me.email);
-      await vault.ensureTeamVault(team.vault);
-      store.setRunVaultDir(runId, DiskVault.runFolder(team.vault, wf.name, runId));
-      await engine.start(wf, team, inputs, { runId, force: b.force, actor: actorOf(me), maxCostUsd });
-      return { runId, preflight: pf };
+      const runId = await launch({ wf, team, inputs: { ...(b.inputs ?? {}) }, purpose: "work", me, force: b.force });
+      return { runId };
     },
     "run",
   );
+
+  // --- main agent: chat, plans --------------------------------------------
+  const userErr = async <T>(f: () => Promise<T> | T): Promise<T> => {
+    try {
+      return await f();
+    } catch (e) {
+      if (e instanceof UserError) fail(e.status, e.message);
+      throw e;
+    }
+  };
+  /** A thread: the main agent's (with its plans) or a sub-agent's. */
+  route("GET", "/api/workspaces/:id/chat/:agentId", (_q, _r, p) => {
+    mustTeam(p.id!);
+    const messages = store.messages(p.id!, p.agentId!);
+    const answered = new Set(messages.filter((m) => m.role === "agent" && m.runId).map((m) => m.runId));
+    const waiting = messages.some((m) => m.role === "person" && m.runId && !answered.has(m.runId));
+    return { messages, waiting };
+  });
+  route("POST", "/api/workspaces/:id/chat/:agentId", (_q, _r, p, body, me) =>
+    userErr(async () => {
+      const team = mustTeam(p.id!);
+      const text = String(((body ?? {}) as { text?: string }).text ?? "");
+      if (p.agentId === team.mainAgentId) return mainAgent.ask(team.id, text, me);
+      return { message: await mainAgent.chat(team.id, p.agentId!, text, me) };
+    }),
+  "run");
+  route("GET", "/api/workspaces/:id/plans", (_q, _r, p) => (mustTeam(p.id!), mainAgent.plans(p.id!)));
+  route("GET", "/api/plans/:id", (_q, _r, p) => mainAgent.plan(p.id!) ?? fail(404, "Plan not found"));
+  route("POST", "/api/plans/:id/run", (_q, _r, p, _b, me) => userErr(() => mainAgent.runPlan(p.id!, me)), "run");
+  route("POST", "/api/plans/:id/save", (_q, _r, p) => userErr(() => mainAgent.save(p.id!, newId)), "edit");
+  route("POST", "/api/plans/:id/cancel", (_q, _r, p) => userErr(() => mainAgent.cancel(p.id!)), "run");
+  /** What an agent was given in this workspace and what it delivered (its History tab). */
+  route("GET", "/api/workspaces/:id/agents/:agentId/history", (_q, _r, p) => {
+    mustTeam(p.id!);
+    return store.agentHistory(p.agentId!, p.id!).map((r) => {
+      const node = r.workflow.nodes.find((n) => n.id === r.node_id);
+      return {
+        runId: r.run_id,
+        nodeId: r.node_id,
+        attempt: r.attempt,
+        title: node?.label || String(r.node_id),
+        workflowName: r.workflow_name,
+        // A step left "running" by a run that ended (e.g. a restart) shows how the run ended.
+        status: r.status === "running" && !["running", "paused", "pending"].includes(String(r.run_status)) ? String(r.run_status) : r.status,
+        startedAt: r.started_at,
+        endedAt: r.ended_at,
+        costUsd: r.cost_usd,
+        error: r.error,
+      };
+    });
+  });
+
   route("GET", "/api/runs/:id", (_q, _r, p) => {
     const run = store.getRun(p.id!) ?? fail(404, "Run not found");
     const events = store.events(p.id!);

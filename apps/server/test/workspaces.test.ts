@@ -77,3 +77,69 @@ describe("workspaces", () => {
     expect((await api("/api/inbox/dismiss", { json: { id: "plan:x" } })).status).toBe(400);
   });
 });
+
+const until = async (f: () => Promise<boolean>, ms = 8000) => {
+  const end = Date.now() + ms;
+  while (Date.now() < end) {
+    if (await f()) return;
+    await new Promise((r) => setTimeout(r, 40));
+  }
+  throw new Error("timed out");
+};
+
+describe("main agent", () => {
+  it("chat → plan → Run plan → combined reply, all on the practice runtime", async () => {
+    const ws = (await api("/api/templates/launch-brief/instantiate", { json: { name: "Plans" } })).body.team;
+    const main = ws.mainAgentId;
+    const sent = await api(`/api/workspaces/${ws.id}/chat/${main}`, { json: { text: "Plan a bakery opening" } });
+    expect(sent.status).toBe(200);
+    const planId = sent.body.plan.id;
+    await until(async () => (await api(`/api/plans/${planId}`)).body.status === "proposed");
+    const plan = (await api(`/api/plans/${planId}`)).body;
+    expect(plan.number).toBe(1);
+    expect(plan.steps.length).toBe(3); // two steps + combine
+    expect(plan.steps.at(-1).who).toBe(main);
+    expect((await api("/api/inbox")).body.some((i: any) => i.planId === planId)).toBe(true);
+
+    const ran = await api(`/api/plans/${planId}/run`, { method: "POST" });
+    expect(ran.status).toBe(200);
+    expect((await api(`/api/plans/${planId}/run`, { method: "POST" })).status).toBe(409);
+    await until(async () => (await api(`/api/plans/${planId}`)).body.status === "done", 15000);
+    const done = (await api(`/api/plans/${planId}`)).body;
+    expect(done.done).toBe(done.total);
+    expect(done.reply).toContain("Here's what the team came up with");
+    const thread = (await api(`/api/workspaces/${ws.id}/chat/${main}`)).body.messages;
+    expect(thread.map((m: any) => m.role)).toEqual(["person", "agent", "agent"]);
+    // planning runs stay out of the Runs list; the plan's run is in it
+    const runs = (await api(`/api/runs?teamId=${ws.id}`)).body;
+    expect(runs).toHaveLength(1);
+    expect(runs[0].workflowName).toMatch(/^Plan #1/);
+    const history = (await api(`/api/workspaces/${ws.id}/agents/researcher-${ws.id.split("-").pop()}/history`)).body;
+    expect(history.length).toBeGreaterThan(0);
+  });
+
+  it("auto-runs plans when the workspace allows it, and cancels", async () => {
+    const ws = (await api("/api/templates/content-post/instantiate", { json: { name: "Auto" } })).body.team;
+    await api(`/api/teams/${ws.id}`, { method: "PUT", json: { ...ws, autoRun: true } });
+    const sent = await api(`/api/workspaces/${ws.id}/chat/${ws.mainAgentId}`, { json: { text: "Write a post about tea" } });
+    const planId = sent.body.plan.id;
+    await until(async () => ["running", "done"].includes((await api(`/api/plans/${planId}`)).body.status));
+    const p = (await api(`/api/plans/${planId}`)).body;
+    if (p.status === "running") {
+      expect((await api(`/api/plans/${planId}/cancel`, { method: "POST" })).status).toBe(200);
+      await until(async () => (await api(`/api/plans/${planId}`)).body.status === "cancelled");
+    }
+  });
+
+  it("answers a direct question from a sub-agent without starting work", async () => {
+    const ws = (await api("/api/teams")).body.find((t: any) => t.id === "launch-team");
+    const agent = ws.memberIds[0];
+    const r = await api(`/api/workspaces/${ws.id}/chat/${agent}`, { json: { text: "What do you know about prices?" } });
+    expect(r.status).toBe(200);
+    await until(async () => (await api(`/api/workspaces/${ws.id}/chat/${agent}`)).body.messages.length === 2);
+    const t = (await api(`/api/workspaces/${ws.id}/chat/${agent}`)).body;
+    expect(t.waiting).toBe(false);
+    expect(t.messages[1].text).toContain("Practice reply");
+    expect((await api(`/api/workspaces/${ws.id}/chat/nobody`, { json: { text: "hi" } })).status).toBe(404);
+  });
+});
