@@ -1,7 +1,7 @@
 "use client";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { PixelOffice, type OfficeAgent } from "@agent-town/pixel-office";
-import type { AgentStatus } from "@agent-town/core";
+import { ACTIVITY_LABEL, officeActivity, officeMeetings, officeStatus, type AgentStatus, type OfficeActivity, type RunState } from "@agent-town/core";
 
 /**
  * The pixel office (engine + art from pixel-agents, MIT), wrapped for Agent Town.
@@ -21,23 +21,54 @@ export interface OfficePerson {
   message?: string;
   /** Agent's sprite setting, e.g. "char-2" picks office character 2. */
   sprite?: string;
+  /** Teammate this person is meeting with (from officeMeetings). */
+  meetWith?: string;
 }
 
-const PILL: Record<AgentStatus, { text: (p: OfficePerson) => string; bg: string; fg: string } | null> = {
-  idle: null,
-  done: null,
-  thinking: { text: () => "Thinking…", bg: "#ede9fe", fg: "#6d28d9" },
-  working: { text: (p) => (p.tool ? `Using ${p.tool}` : p.message?.slice(0, 28) || "Working"), bg: "#dbeafe", fg: "#1d4ed8" },
-  "waiting-for-human": { text: () => "Waiting for you!", bg: "#fef3c7", fg: "#b45309" },
-  failed: { text: () => "Something went wrong", bg: "#fee2e2", fg: "#b91c1c" },
+const PILL: Record<Exclude<OfficeActivity, "idle">, { bg: string; fg: string }> = {
+  thinking: { bg: "#ede9fe", fg: "#6d28d9" },
+  coding: { bg: "#dbeafe", fg: "#1d4ed8" },
+  terminal: { bg: "#1f2937", fg: "#a7f3d0" },
+  browsing: { bg: "#ccfbf1", fg: "#0f766e" },
+  reading: { bg: "#e0f2fe", fg: "#0369a1" },
+  working: { bg: "#dbeafe", fg: "#1d4ed8" },
+  "needs-you": { bg: "#ef4444", fg: "#ffffff" },
+  error: { bg: "#fee2e2", fg: "#b91c1c" },
+  done: { bg: "#dcfce7", fg: "#15803d" },
 };
+const MEETING = { bg: "#fef9c3", fg: "#854d0e" };
+const CELEBRATE_MS = 3500;
 
-export function Office({ people, onAgentClick, selectedId, height = 704 }: { people: OfficePerson[]; onAgentClick?: (id: string) => void; selectedId?: string | null; height?: number }) {
+export function Office({
+  people,
+  onAgentClick,
+  selectedId,
+  height = 704,
+  simulated,
+}: {
+  people: OfficePerson[];
+  onAgentClick?: (id: string) => void;
+  selectedId?: string | null;
+  height?: number;
+  simulated?: boolean;
+}) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const officeRef = useRef<PixelOffice | null>(null);
   const tagsRef = useRef<HTMLDivElement>(null);
   const peopleRef = useRef(people);
   peopleRef.current = people;
+  // "Done" shows briefly (with a sparkle) when someone finishes, then the pill goes away.
+  const [celebrating, setCelebrating] = useState<Set<string>>(new Set());
+  const prevStatus = useRef(new Map<string, AgentStatus>());
+  useEffect(() => {
+    const fresh = people.filter((p) => p.status === "done" && prevStatus.current.has(p.id) && prevStatus.current.get(p.id) !== "done").map((p) => p.id);
+    prevStatus.current = new Map(people.map((p) => [p.id, p.status]));
+    if (!fresh.length) return;
+    setCelebrating((c) => new Set([...c, ...fresh]));
+    const t = setTimeout(() => setCelebrating((c) => new Set([...c].filter((id) => !fresh.includes(id)))), CELEBRATE_MS);
+    return () => clearTimeout(t);
+  }, [people]);
+  const names = Object.fromEntries(people.map((p) => [p.id, p.name]));
 
   useEffect(() => {
     const canvas = canvasRef.current!;
@@ -46,9 +77,21 @@ export function Office({ people, onAgentClick, selectedId, height = 704 }: { peo
         // Move the HTML name tags with the characters (no React re-render per frame).
         const host = tagsRef.current;
         if (!host) return;
-        for (const pos of office.labelPositions()) {
+        // Stack tags that would overlap (e.g. two people side by side on the sofa).
+        const placed: Array<{ x: number; y: number; w: number; h: number }> = [];
+        for (const pos of [...office.labelPositions()].sort((a, b) => b.y - a.y)) {
           const el = host.querySelector<HTMLElement>(`[data-agent="${CSS.escape(pos.id)}"]`);
-          if (el) el.style.transform = `translate(${Math.round(pos.x)}px, ${Math.round(pos.y)}px) translate(-50%, -100%)`;
+          if (!el) continue;
+          const w = el.offsetWidth || 60;
+          const h = el.offsetHeight || 30;
+          let y = pos.y;
+          for (let guard = 0; guard < 6; guard++) {
+            const hit = placed.find((r) => Math.abs(r.x - pos.x) < (r.w + w) / 2 && y > r.y - r.h && y - h < r.y);
+            if (!hit) break;
+            y = hit.y - hit.h - 2;
+          }
+          placed.push({ x: pos.x, y, w, h });
+          el.style.transform = `translate(${Math.round(pos.x)}px, ${Math.round(y)}px) translate(-50%, -100%)`;
         }
       },
     });
@@ -80,14 +123,28 @@ export function Office({ people, onAgentClick, selectedId, height = 704 }: { peo
         }}
         aria-label="Office: click a person to see their task, log and output"
       />
+      {simulated && (
+        <span className="pointer-events-none absolute left-3 top-3 rounded-full px-2.5 py-1 text-[11px] font-semibold" style={{ background: "rgba(17,19,31,.72)", color: "#fde68a" }}>
+          Simulated
+        </span>
+      )}
       <div ref={tagsRef} className="pointer-events-none absolute inset-0">
         {people.map((p) => {
-          const pill = PILL[p.status];
+          const act = officeActivity(p.status, p.tool);
+          const idleMeeting = p.meetWith && (act === "idle" || act === "done");
+          const show = idleMeeting || (act !== "idle" && (act !== "done" || celebrating.has(p.id)));
+          const style = idleMeeting ? MEETING : act !== "idle" ? PILL[act] : null;
+          const text = idleMeeting ? `With ${names[p.meetWith!] ?? "a teammate"}` : act === "done" ? "Done ✓" : ACTIVITY_LABEL[act] + (act === "thinking" ? "…" : "");
           return (
             <div key={p.id} data-agent={p.id} className="absolute left-0 top-0 flex flex-col items-center gap-0.5 whitespace-nowrap" style={{ transform: "translate(-9999px,-9999px)" }}>
-              {pill && (
-                <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold shadow ${p.status === "waiting-for-human" ? "animate-bounce" : ""}`} style={{ background: pill.bg, color: pill.fg }}>
-                  {pill.text(p)}
+              {show && style && (
+                <span
+                  className={`relative rounded-full px-2 py-0.5 text-[10px] font-bold shadow ${act === "needs-you" ? "office-pulse" : ""}`}
+                  style={{ background: style.bg, color: style.fg }}
+                  title={p.tool ?? p.message}
+                >
+                  {text}
+                  {act === "done" && celebrating.has(p.id) && <span className="office-sparkle" aria-hidden />}
                 </span>
               )}
               <span
@@ -108,6 +165,19 @@ export function Office({ people, onAgentClick, selectedId, height = 704 }: { peo
 function toOffice(people: OfficePerson[]): OfficeAgent[] {
   return people.map((p) => {
     const m = /^char-(\d+)$/.exec(p.sprite ?? "");
-    return { id: p.id, name: p.name, status: p.status, tool: p.tool, look: m ? Number(m[1]) : undefined };
+    return { id: p.id, name: p.name, status: p.status, tool: p.tool, look: m ? Number(m[1]) : undefined, meetWith: p.meetWith };
   });
+}
+
+/** Office people for a run: statuses, current tool and meetings, all from the projected state. */
+export function officePeople(state: RunState): OfficePerson[] {
+  const partner = new Map<string, string>();
+  for (const [a, b] of officeMeetings(state)) {
+    partner.set(a, b);
+    partner.set(b, a);
+  }
+  return state.agentOrder
+    .map((id) => state.agents[id])
+    .filter((a): a is NonNullable<typeof a> => !!a)
+    .map((a) => ({ id: a.id, name: a.name, color: a.color, status: officeStatus(state, a.status), tool: a.currentTool, message: a.message, sprite: a.sprite, meetWith: partner.get(a.id) }));
 }

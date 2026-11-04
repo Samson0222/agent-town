@@ -11,6 +11,8 @@ export interface AgentState extends AgentInfo {
   message?: string;
   /** Tool the agent is using right now (cleared when its step ends). Pattern from OpenClaw Office. */
   currentTool?: string;
+  /** Teammate whose work this agent's current step picked up (from the last handoff to it). */
+  collaborator?: string;
   lastSeq: number;
   costUsd: number;
   tokens: number;
@@ -63,6 +65,8 @@ export interface RunState {
   files: string[];
   cost: { total: number; cap: number; simulated: boolean; tokens: number; byAgent: Record<string, number>; byRuntime: Record<string, number> };
   warnings: string[];
+  /** Last agent that handed work to each agent (consumed when that agent's next step starts). */
+  handoffFrom: Record<string, string>;
   error?: string;
   endReason?: string;
   lastSeq: number;
@@ -82,6 +86,7 @@ export function emptyRunState(): RunState {
     files: [],
     cost: { total: 0, cap: 0, simulated: false, tokens: 0, byAgent: {}, byRuntime: {} },
     warnings: [],
+    handoffFrom: {},
     lastSeq: 0,
   };
 }
@@ -141,6 +146,11 @@ export function applyEvent(s: RunState, ev: AgentTownEvent): RunState {
         n.attempts = ev.attempt;
         n.agentId = ev.agentId;
         n.error = undefined;
+        const a = ev.agentId ? s.agents[ev.agentId] : undefined;
+        if (a) {
+          a.collaborator = s.handoffFrom[a.id];
+          delete s.handoffFrom[a.id];
+        }
       }
       break;
     case "node.completed":
@@ -149,6 +159,7 @@ export function applyEvent(s: RunState, ev: AgentTownEvent): RunState {
         n.status = "done";
         n.output = ev.output;
         n.outcome = ev.outcome;
+        if (n.agentId && s.agents[n.agentId]) s.agents[n.agentId]!.collaborator = undefined;
       }
       break;
     case "node.failed":
@@ -156,7 +167,11 @@ export function applyEvent(s: RunState, ev: AgentTownEvent): RunState {
         const n = node(s, ev.nodeId);
         n.status = "failed";
         n.error = ev.error;
+        if (n.agentId && s.agents[n.agentId]) s.agents[n.agentId]!.collaborator = undefined;
       }
+      break;
+    case "message":
+      if ((ev.kind === "handoff" || ev.kind === "feedback") && ev.from && ev.to && ev.from !== ev.to) s.handoffFrom[ev.to] = ev.from;
       break;
     case "node.skipped":
       if (ev.nodeId) node(s, ev.nodeId).status = "skipped";

@@ -46,7 +46,7 @@ export function StepListMode({
     try {
       const goalKey = wf.inputs.find((i) => i.key === "goal")?.key ?? wf.inputs[0]?.key;
       const g = buildGraphFromSteps(steps, { goalKey });
-      return parseWorkflow({ ...wf, nodes: g.nodes, edges: g.edges });
+      return parseWorkflow({ ...wf, nodes: g.nodes, edges: g.edges, entryNodeIds: g.entryNodeIds });
     } catch {
       return wf;
     }

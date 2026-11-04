@@ -2,8 +2,8 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowRight, Play, Users } from "lucide-react";
-import type { AgentState, Team } from "@agent-town/core";
-import { Office, type OfficePerson } from "@/components/Office";
+import { isSimulatedRun, type AgentState, type Team } from "@agent-town/core";
+import { Office, officePeople, type OfficePerson } from "@/components/Office";
 import { AgentStatusChip, Avatar, EmptyState, RunStatusChip } from "@/components/ui";
 import { api, errorText, type RunRow } from "@/lib/api";
 import { useRun } from "@/lib/useRun";
@@ -132,17 +132,8 @@ function LiveOffice({ team, run }: { team: Team; run: RunRow }) {
   const [selected, setSelected] = useState<string | null>(null);
   const agents = useMemo(() => state.agentOrder.map((a) => state.agents[a]!).filter(Boolean) as AgentState[], [state]);
   const people: OfficePerson[] = useMemo(
-    () =>
-      (agents.length ? agents : team.agents.map((a) => ({ id: a.id, name: a.name, color: a.appearance.color, status: "idle" as const, sprite: a.appearance.sprite }))).map((a) => ({
-        id: a.id,
-        name: a.name,
-        color: a.color,
-        status: a.status,
-        tool: "currentTool" in a ? a.currentTool : undefined,
-        message: "message" in a ? a.message : undefined,
-        sprite: a.sprite,
-      })),
-    [agents, team],
+    () => (agents.length ? officePeople(state) : team.agents.map((a) => ({ id: a.id, name: a.name, color: a.appearance.color, status: "idle" as const, sprite: a.appearance.sprite }))),
+    [agents, state, team],
   );
   return (
     <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
@@ -156,7 +147,7 @@ function LiveOffice({ team, run }: { team: Team; run: RunRow }) {
             Open run <ArrowRight size={14} />
           </Link>
         </div>
-        <Office people={people} onAgentClick={setSelected} selectedId={selected} height={520} />
+        <Office people={people} onAgentClick={setSelected} selectedId={selected} height={520} simulated={isSimulatedRun(state)} />
       </section>
       <aside className="panel p-5">
         <div className="section-title mb-3">Team</div>

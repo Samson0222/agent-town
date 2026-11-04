@@ -3,9 +3,9 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { ArrowLeft, Building2, Columns3, History, Network, Pause, Play, Radio, Square } from "lucide-react";
-import { pendingApprovals } from "@agent-town/core";
+import { isSimulatedRun, pendingApprovals } from "@agent-town/core";
 import { FlowGraph } from "@/components/FlowGraph";
-import { Office } from "@/components/Office";
+import { Office, officePeople } from "@/components/Office";
 import { ActivityFeed, AgentDrawer, ApprovalBanner, Board, CostMeter, Outputs, StepsPanel, TeamRoster } from "@/components/RunPanels";
 import { RunStatusChip } from "@/components/ui";
 import { api, errorText } from "@/lib/api";
@@ -23,10 +23,7 @@ export default function RunPage() {
   const agents = useMemo(() => state.agentOrder.map((a) => state.agents[a]!).filter(Boolean), [state]);
   const names = useMemo(() => Object.fromEntries(agents.map((a) => [a.id, a.name])), [agents]);
   const colors = useMemo(() => Object.fromEntries(agents.map((a) => [a.id, a.color])), [agents]);
-  const people = useMemo(
-    () => agents.map((a) => ({ id: a.id, name: a.name, color: a.color, status: a.status, tool: a.currentTool, message: a.message, sprite: a.sprite })),
-    [agents],
-  );
+  const people = useMemo(() => officePeople(state), [state]);
   const labels = useMemo(() => Object.fromEntries((detail?.run.workflow.nodes ?? []).map((n) => [n.id, n.label || n.id])), [detail]);
 
   if (error) return <p style={{ color: "var(--bad)" }}>{error}</p>;
@@ -131,7 +128,7 @@ export default function RunPage() {
 
             </div>
             <div style={{ height: view === "office" ? 480 : 560 }} className={view === "office" ? "" : "p-3"}>
-              {view === "office" && <Office people={people} onAgentClick={setSelected} selectedId={selected} height={480} />}
+              {view === "office" && <Office people={people} onAgentClick={setSelected} selectedId={selected} height={480} simulated={isSimulatedRun(state)} />}
               {view === "graph" && <FlowGraph workflow={workflow} team={team} statuses={state.nodes} height="100%" bare />}
               {view === "board" && <Board state={state} names={names} colors={colors} onSelect={(a) => a && setSelected(a)} />}
             </div>

@@ -2,6 +2,24 @@
 
 Newest first. Record decisions and open points from each session.
 
+## 2026-11-04 — Item 1 done: office upgrades
+
+The user approved the order (office upgrades → hosted access → 2D/3D → external reporting). The domain for hosting is **devsam.my**.
+
+**Decisions:**
+- **Shared helpers in core** (`state/office.ts`): `officeActivity`, `officeMeetings` and `isSimulatedRun`. The future 3D view will use the same helpers, so both views always agree.
+- **Statuses.** The tool in use decides the activity: terminal (shell/exec), browsing (web/fetch/http), reading (read/search/list), coding (write/edit/save), otherwise working.
+  - "Needs you" is a red pulsing pill.
+  - "Done ✓" shows for 3.5 s with a sparkle, together with a double hop in the office.
+- **Meetings.** An agent meets the teammate whose work it is handling while that teammate's task is in **review** (the engine's own review stage).
+  - This works out to: the reviewer checking a draft meets the writer. Plain handoffs don't trigger meetings, so the office isn't always in meetings.
+  - New reducer fields: `AgentState.collaborator`, taken from the last handoff or feedback message when the agent's step starts, and `RunState.handoffFrom`. Both are additive, so old runs replay unchanged.
+  - Both people walk to the lounge sofa (non-desk seats) and sit there until the review ends, then return to their desks. If the lounge is full they stay at their desks. The partner's pill reads "With <name>".
+- **Simulated.** A "Simulated" chip shows when every agent in the run uses the practice runtime.
+- **Phones.** Below 640 px the agent drawer becomes a bottom sheet.
+
+**Bug found and fixed:** a step-list workflow whose **first** step had a review loop couldn't start ("no entry node"), because the loop points back at the first step. `buildGraphFromSteps` now always sets `entryNodeIds`. Existing step-list workflows get the fix the next time they are saved.
+
 ## 2026-11-04 — Borrow ideas from @btcup99's 3D office post; public hosting for logged-in users; 2D/3D switch
 
 The user asked to borrow the post's ideas, to host Agent Town publicly for authenticated users only, and to add a switch between a 2D and a 3D office.

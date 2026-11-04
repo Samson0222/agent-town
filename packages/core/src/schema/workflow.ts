@@ -239,6 +239,6 @@ export function migrateWorkflow(json: unknown): unknown {
 export function syncSimpleWorkflow(wf: Workflow): Workflow {
   if (!wf.simple) return wf;
   const goalKey = wf.inputs.find((i) => i.key === "goal")?.key ?? wf.inputs[0]?.key;
-  const { nodes, edges } = buildGraphFromSteps(wf.simple.steps, { goalKey });
-  return Workflow.parse({ ...wf, nodes, edges, entryNodeIds: undefined });
+  const { nodes, edges, entryNodeIds } = buildGraphFromSteps(wf.simple.steps, { goalKey });
+  return Workflow.parse({ ...wf, nodes, edges, entryNodeIds });
 }

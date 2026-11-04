@@ -37,7 +37,7 @@ const DX = 300;
 const DY = 130;
 
 /** Generate graph nodes + edges from a step list. Deterministic: same steps → same ids. */
-export function buildGraphFromSteps(steps: SimpleStep[], opts: { goalKey?: string } = {}): { nodes: WorkflowNodeInput[]; edges: WorkflowEdge[] } {
+export function buildGraphFromSteps(steps: SimpleStep[], opts: { goalKey?: string } = {}): { nodes: WorkflowNodeInput[]; edges: WorkflowEdge[]; entryNodeIds: string[] } {
   const nodes: WorkflowNodeInput[] = [];
   const edges: WorkflowEdge[] = [];
   let e = 0;
@@ -143,7 +143,8 @@ export function buildGraphFromSteps(steps: SimpleStep[], opts: { goalKey?: strin
 
   nodes.push({ id: "end", type: "end", label: "Done", position: { x: X0, y } });
   connect("end");
-  return { nodes, edges };
+  // Explicit entry: a review loop can point back at the first step, so "no incoming edge" isn't enough.
+  return { nodes, edges, entryNodeIds: [nodes[0]!.id] };
 }
 
 let counter = 0;

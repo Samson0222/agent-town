@@ -31,11 +31,11 @@ Follows [brief-v0.3.md](brief-v0.3.md) → *Build order*. ✅ done · 🟡 partl
 
 ## Office upgrades (ideas borrowed from @btcup99's "3D AI office" post, 2026-11-04)
 Small and view-only; no security impact. See reference-review.md §9.
-- ⬜ Clearer statuses from the current tool: coding · terminal · browsing · reading · thinking · needs you (red pulse) · error · done
-- ⬜ Collaboration: when a review loop or handoff runs between two agents, both walk to the meeting table, then back to their desks
-- ⬜ Done moment: a short hop and sparkle when a step finishes
-- ⬜ "Simulated" label on the office and run when the practice runtime is used
-- ⬜ Phone layout: the side panel becomes a bottom drawer
+- ✅ Clearer statuses from the current tool: coding · terminal · browsing · reading · thinking · needs you (red pulse) · error · done
+- ✅ Collaboration: when a review loop or handoff runs between two agents, both walk to the meeting table, then back to their desks
+- ✅ Done moment: a short hop and sparkle when a step finishes
+- ✅ "Simulated" label on the office and run when the practice runtime is used
+- ✅ Phone layout: the side panel becomes a bottom drawer
 
 ## 2D / 3D office switch
 The office is only a view of `reduceRunState(events)`, so a 3D view can sit beside the 2D one and use the same input.
