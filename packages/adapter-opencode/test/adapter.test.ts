@@ -32,6 +32,11 @@ function fakeOpenCode(script: (sessionID: string, text: string) => OpenCodeEvent
         return { id: input.sessionID, cost: 0.0123, tokens: { input: 100, output: 40, reasoning: 10 } };
       },
     },
+    permission: {
+      async reply(input) {
+        calls.push({ fn: "permission.reply", input });
+      },
+    },
     model: {
       async list() {
         return {
@@ -132,10 +137,11 @@ describe("OpenCode adapter (fake server, no spend)", () => {
     const run = await engine.start(wf, team, {});
     expect(await run.done).toBe("completed");
     const s = reduceRunState(run.events);
-    // session created with the right model, directory, agent and a shell deny (agent has no shell permission)
+    // session created with the right model, directory, agent and every OpenCode tool denied
     const create = fake.calls.find((c) => c.fn === "session.create")!.input;
     expect(create).toMatchObject({ agent: "build", model: { providerID: "opencode-go", id: "kimi-k3" }, location: { directory: "/work/project" } });
-    expect(create.permissions).toEqual([{ action: "shell", resource: "*", effect: "deny" }]);
+    expect(create.permissions[0]).toEqual({ action: "*", resource: "*", effect: "deny" });
+    expect(create.permissions.some((r: any) => r.action === "shell" && r.effect !== "deny")).toBe(false);
     // instructions + goal reached the prompt
     const prompt = fake.calls.find((c) => c.fn === "session.prompt")!.input.text as string;
     expect(prompt).toMatch(/## Your role and instructions[\s\S]*Cite numbers\.[\s\S]*Coffee shop: find competitors/);
@@ -171,7 +177,7 @@ describe("OpenCode adapter (fake server, no spend)", () => {
     await adapter.dispose();
   });
 
-  it("shows an OpenCode permission request as 'waiting for you'", async () => {
+  it("asks OpenCode's permission questions in Agent Town and passes the answer back", async () => {
     const { engine, team, wf, fake, adapter } = setup((sessionID) => [
       { type: "session.execution.started", data: { sessionID } },
       { type: "permission.asked", data: { id: "p1", sessionID, action: "read", resources: [".env"] } },
@@ -181,11 +187,21 @@ describe("OpenCode adapter (fake server, no spend)", () => {
     run.subscribe((ev: AgentTownEvent) => ev.type === "agent.status" && statuses.push(ev.status));
     await new Promise((r) => setTimeout(r, 30));
     expect(statuses).toContain("waiting-for-human");
-    // OpenCode then finishes after the user answered there
-    const sid = (await fake.calls.find((c) => c.fn === "session.prompt")!.input.sessionID) as string;
+    const pending = Object.values(reduceRunState(run.events).approvals).find((a) => !a.resolved)!;
+    expect(pending).toMatchObject({ kind: "tool", category: "runtime", tool: "read" });
+    run.approve(pending.approvalId, false, "not that file");
+    await new Promise((r) => setTimeout(r, 10));
+    const sid = fake.calls.find((c) => c.fn === "session.prompt")!.input.sessionID as string;
+    expect(fake.calls.find((c) => c.fn === "permission.reply")!.input).toEqual({ sessionID: sid, requestID: "p1", decision: "reject", message: "not that file" });
     fake.emit({ type: "session.execution.succeeded", data: { sessionID: sid } });
     expect(await run.done).toBe("completed");
     await adapter.dispose();
+  });
+
+  it("gives shell back only as 'ask' to agents allowed to use it", async () => {
+    const { sessionPermissions } = await import("../src");
+    expect(sessionPermissions({ shell: true, autoApproveWrite: false })).toContainEqual({ action: "shell", resource: "*", effect: "ask" });
+    expect(sessionPermissions({ shell: false, autoApproveWrite: false }).filter((r) => r.effect !== "deny")).toEqual([]);
   });
 
   it("only talks to localhost", async () => {

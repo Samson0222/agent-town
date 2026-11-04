@@ -14,16 +14,16 @@
  *   session.tool.input.started (name)    → remembered for the next two
  *   session.tool.called                  → tool_use
  *   session.tool.success / .failed       → tool_result
- *   permission.asked                     → waiting ("answer in OpenCode" — see LIMITATIONS)
+ *   permission.asked                     → waiting with requestId → Agent Town's approval banner → permission.reply
  *   session.usage.updated (cumulative)   → cost (delta since last update)
  *   session.execution.succeeded          → done (accumulated text)
  *   session.execution.failed / .interrupted → failed
  *
  * LIMITATIONS (recorded in docs/discussion.md):
- *  - permission.asked can't be answered from Agent Town yet: the adapter contract
- *    has no "respond to a runtime question" call. Proposed contract addition:
- *    RuntimeEvent `waiting` gets `requestId`, adapter gets optional
- *    `respond(sessionId, requestId, approved, note)` → OpenCode `permission.reply`.
+ *  - Sessions are locked down: every OpenCode tool is denied unless the agent may
+ *    use the shell (then shell is allowed; everything else still denied), and they run
+ *    in an empty scratch folder, never the project. Anything OpenCode still asks about
+ *    comes to Agent Town as an approval.
  *  - Agent Town skills are sent in the instructions, not via OpenCode's `skills`
  *    prompt field (that field refers to skills installed in OpenCode).
  */
@@ -60,6 +60,7 @@ export interface OpenCodeClientLike {
     get(input: { sessionID: string }): Promise<{ id: string; cost?: number; tokens?: TokenUsage; outcome?: string }>;
     remove?(input: { sessionID: string }): Promise<unknown>;
   };
+  permission?: { reply(input: { sessionID: string; requestID: string; decision: "once" | "always" | "reject"; message?: string }): Promise<unknown> };
   model: { list(): Promise<{ data: OpenCodeModel[] } | OpenCodeModel[]> };
   /** 2.2.0 shape: one options object (types + signal) → an async iterable (not a Promise). */
   event: { subscribe(options: { types: readonly OpenCodeEventType[]; signal?: AbortSignal }): AsyncIterable<OpenCodeEvent> | Promise<AsyncIterable<OpenCodeEvent>> };
@@ -244,7 +245,7 @@ export class OpenCodeAdapter implements RuntimeAdapter {
         break;
       case "permission.asked": {
         const what = [d.action, ...(Array.isArray(d.resources) ? d.resources : [])].filter(Boolean).join(" ");
-        this.push(s, { kind: "waiting", message: `OpenCode asks permission: ${d.message ?? what} — answer it in OpenCode` });
+        this.push(s, { kind: "waiting", message: `OpenCode asks: ${d.message ?? what}`, requestId: d.id ? String(d.id) : undefined, action: d.action ? String(d.action) : undefined });
         break;
       }
       case "session.usage.updated": {
@@ -288,14 +289,14 @@ export class OpenCodeAdapter implements RuntimeAdapter {
   async startSession(opts: SessionOptions): Promise<SessionHandle> {
     const client = await this.c();
     await this.ensureHub();
-    const permissions = opts.permissions && !opts.permissions.shell ? [{ action: "shell", resource: "*", effect: "deny" as const }] : undefined;
+    const permissions = sessionPermissions(opts.permissions);
     const info = await client.session.create({
       title: `Agent Town · ${opts.agentName} · ${opts.nodeId}`,
       agent: this.opts.agent ?? "build",
       model: splitModel(opts.model),
       location: { directory: opts.workdir ?? this.opts.directory },
       metadata: { agentTown: { runId: opts.runId, nodeId: opts.nodeId, agentId: opts.agentId } },
-      ...(permissions ? { permissions } : {}),
+      permissions,
     });
     this.sessions.set(info.id, {
       queue: [],
@@ -347,6 +348,13 @@ export class OpenCodeAdapter implements RuntimeAdapter {
     }
   }
 
+  /** Pass a person's answer back to OpenCode. "Yes" allows this one request only. */
+  async respond(sessionId: string, requestId: string, approved: boolean, note?: string): Promise<void> {
+    const client = await this.c();
+    if (!client.permission) throw new Error("This OpenCode client can't answer permission requests");
+    await client.permission.reply({ sessionID: sessionId, requestID: requestId, decision: approved ? "once" : "reject", ...(note ? { message: note } : {}) });
+  }
+
   async cancel(sessionId: string): Promise<void> {
     const s = this.sessions.get(sessionId);
     if (!s || s.finished) return;
@@ -391,4 +399,17 @@ export class OpenCodeAdapter implements RuntimeAdapter {
     if (!s) throw new Error(`Unknown OpenCode session ${id}`);
     return s;
   }
+}
+
+/**
+ * Session rules: deny every OpenCode tool, so agents answer in text and Agent Town
+ * saves the result. An agent allowed to use the shell gets shell back (OpenCode still
+ * asks before anything its own config marks "ask", and that comes to Agent Town).
+ * The deny-all rule comes first and last, so it wins whichever way OpenCode orders rules.
+ */
+export function sessionPermissions(p?: SessionOptions["permissions"]): Array<{ action: string; resource: string; effect: "allow" | "deny" | "ask" }> {
+  const rules: Array<{ action: string; resource: string; effect: "allow" | "deny" | "ask" }> = [{ action: "*", resource: "*", effect: "deny" }];
+  if (p?.shell) rules.push({ action: "shell", resource: "*", effect: "ask" });
+  rules.push({ action: "external_directory", resource: "*", effect: "deny" });
+  return rules;
 }

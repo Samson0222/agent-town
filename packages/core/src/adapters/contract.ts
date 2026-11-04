@@ -94,7 +94,11 @@ export type RuntimeEvent =
   | { kind: "text"; delta: string }
   | { kind: "tool_use"; tool: string; input?: unknown; message?: string }
   | { kind: "tool_result"; tool: string; ok: boolean; message?: string }
-  | { kind: "waiting"; message: string }
+  /**
+   * The runtime is waiting for a person. With `requestId` (and an adapter that has
+   * `respond`), Agent Town asks in its approval banner and passes the answer back.
+   */
+  | { kind: "waiting"; message: string; requestId?: string; action?: string }
   | { kind: "cost"; usd: number; inputTokens?: number; outputTokens?: number; simulated?: boolean }
   | { kind: "log"; message: string }
   | { kind: "done"; output: string }
@@ -121,6 +125,11 @@ export interface RuntimeAdapter {
   getCost(sessionId: string): Promise<CostReport>;
   listModels(): Promise<ModelInfo[]>;
   listCapabilities(): Promise<string[]>;
+  /**
+   * Optional: answer a question the runtime asked (a `waiting` event with `requestId`),
+   * e.g. OpenCode's "may I run this command?". Added 2026-11-04, additive.
+   */
+  respond?(sessionId: string, requestId: string, approved: boolean, note?: string): Promise<void>;
   /** Optional cleanup when the engine is done with a session. */
   closeSession?(sessionId: string): Promise<void>;
 }

@@ -2,6 +2,23 @@
 
 Newest first. Record decisions and open points from each session.
 
+## 2026-11-04 — Phase 3 started: real OpenCode runs (user's OK, model DeepSeek V4.1 Flash on OpenCode Go)
+
+- **The user approved a real test** with `opencode-go/deepseek-v4.1-flash`. Their 3rd OpenCode report is in milestone-0-opencode.md. No cap was given; I suggest **$0.10 per run** (workspace Settings → Defaults → Run cost cap).
+- **`respond()`** is an optional, additive part of the adapter contract:
+  - `waiting` events can carry a `requestId`.
+  - The engine turns them into an approval (category `runtime`) and passes the answer back. OpenCode gets `permission.reply` with `once` or `reject`, never `always`.
+- **Sessions are locked down:**
+  - **Rules:** OpenCode sessions are created with "deny everything" (and `external_directory` denied), so agents only answer in text. The user's global OpenCode config allows everything, so without this an agent could edit files or run commands. An agent with the shell permission gets shell back as `ask`, so every command comes to the approval banner.
+  - **Folder:** sessions run in `data/opencode-work` (empty, git-ignored), never the Agent Town project. `AGENT_TOWN_WORKDIR` overrides it.
+- **`npm run dev:opencode`** (Node, works on Windows) starts `opencode serve` on 127.0.0.1:4096 with a random password, then Agent Town with the runtime registered. The password never reaches logs or the repo.
+- **Real models write plans less tidily, so `parsePlan` is more forgiving:**
+  - it accepts a ```json block (any case, Windows line endings) or a bare JSON object
+  - it cuts long titles instead of rejecting them, and treats empty `reviewBy` as none
+  - it drops odd file names and accepts `"true"` and string step numbers
+
+  Who a step goes to is still checked strictly.
+- **Not tried yet:** a real run. I can't run OpenCode from the cloud container, so the first real run is the user's click. The checklist is in the report.
 ## 2026-11-04 — The medieval 3D view opens zoomed in on the office
 
 The whole-island view made the office small. It now opens zoomed in so the office fills the screen; zooming out (mouse wheel) reveals the whole island, up to 6x in. A double click returns to the opening view. A window resize re-fits the opening view until the user has zoomed or dragged.

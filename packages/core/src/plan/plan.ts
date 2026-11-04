@@ -23,28 +23,32 @@ export const COMBINE_MARKER = "Combine the team's results into one reply";
 
 export const MAX_PLAN_STEPS = 8;
 
+const cut = (max: number) => z.preprocess((v) => (typeof v === "string" ? v.trim().slice(0, max) : v), z.string().min(1));
+const optionalId = z.preprocess((v) => (typeof v === "string" && v.trim() ? v.trim() : undefined), z.string().optional());
+
+/** Lenient where real models are sloppy (long titles, empty strings, odd file names); strict where it matters (who). */
 export const PlanStep = z.object({
   /** Agent id, or "squad:<id>" to give the step to a squad. */
-  who: z.string().min(1),
-  title: z.string().min(1).max(80),
-  what: z.string().min(1).max(4000),
+  who: z.preprocess((v) => (typeof v === "string" ? v.trim() : v), z.string().min(1)),
+  title: cut(80),
+  what: cut(4000),
   /** Step numbers (1-based) this step waits for. Missing = the step before it. */
-  after: z.array(z.number().int().positive()).optional(),
-  needsApproval: z.boolean().default(false),
+  after: z.preprocess((v) => (Array.isArray(v) ? v.map(Number).filter((n) => Number.isInteger(n) && n > 0) : typeof v === "number" ? [v] : undefined), z.array(z.number().int().positive()).optional()),
+  needsApproval: z.preprocess((v) => v === true || v === "true", z.boolean()).default(false),
   /** Agent who checks the result and may send it back once or more. */
-  reviewBy: z.string().optional(),
-  outputFile: z.string().regex(/^[\w.-]{1,60}$/).optional(),
+  reviewBy: optionalId,
+  outputFile: z.preprocess((v) => (typeof v === "string" && /^[\w.-]{1,60}$/.test(v) ? v : undefined), z.string().optional()),
 });
 export type PlanStep = z.infer<typeof PlanStep>;
 
 export const Plan = z.object({
   /** What the main agent says back in the chat. */
-  reply: z.string().max(4000).default(""),
+  reply: z.preprocess((v) => (typeof v === "string" ? v.slice(0, 4000) : ""), z.string()).default(""),
   /** Defaults it assumed. */
-  assumptions: z.array(z.string().max(300)).max(8).default([]),
+  assumptions: z.preprocess((v) => (Array.isArray(v) ? v.filter((x) => typeof x === "string").map((x) => x.slice(0, 300)).slice(0, 8) : []), z.array(z.string())).default([]),
   /** Use a saved workflow instead of new steps (its id). */
-  workflow: z.string().optional(),
-  steps: z.array(PlanStep).max(MAX_PLAN_STEPS).default([]),
+  workflow: optionalId,
+  steps: z.array(PlanStep).default([]),
 });
 export type Plan = z.infer<typeof Plan>;
 
@@ -123,11 +127,11 @@ export function plannerPrompt(ctx: PlanContext): string {
 
 /** Pull the plan out of the main agent's answer and check it against the team. */
 export function parsePlan(answer: string, team: Team, workflowIds: string[] = []): Plan {
-  const m = /```plan\s*\n([\s\S]*?)```/.exec(answer) ?? /```json\s*\n([\s\S]*?)```/.exec(answer);
+  const m = findPlanJson(answer);
   if (!m) throw new PlanError("The main agent didn't return a plan");
   let raw: unknown;
   try {
-    raw = JSON.parse(m[1]!);
+    raw = JSON.parse(m.json);
   } catch {
     throw new PlanError("The main agent's plan isn't valid JSON");
   }
@@ -135,6 +139,7 @@ export function parsePlan(answer: string, team: Team, workflowIds: string[] = []
   if (!parsed.success) throw new PlanError(`The plan doesn't have the right shape: ${parsed.error.issues[0]?.message ?? "invalid"}`);
   const plan = parsed.data;
   if (!plan.reply) plan.reply = answer.slice(0, m.index).trim().slice(0, 4000);
+  if (plan.steps.length > MAX_PLAN_STEPS) throw new PlanError(`The plan has more than ${MAX_PLAN_STEPS} steps`);
   if (plan.workflow) {
     if (!workflowIds.includes(plan.workflow)) throw new PlanError(`The plan names a workflow this workspace doesn't have (${plan.workflow})`);
     return { ...plan, steps: [] };
@@ -147,6 +152,26 @@ export function parsePlan(answer: string, team: Team, workflowIds: string[] = []
     for (const a of s.after ?? []) if (a > i) throw new PlanError(`Step ${i + 1} waits for step ${a}, which comes later`);
   });
   return plan;
+}
+
+/** The plan's JSON: a ```plan block (or ```json), else a bare object with "steps" / "reply" / "workflow". */
+function findPlanJson(answer: string): { json: string; index: number } | undefined {
+  const fenced = /```(?:plan|json)[ \t]*\r?\n([\s\S]*?)```/i.exec(answer);
+  if (fenced) return { json: fenced[1]!, index: fenced.index };
+  const start = answer.search(/\{\s*"(?:reply|steps|workflow|assumptions)"/);
+  if (start < 0) return undefined;
+  let depth = 0;
+  let inStr = false;
+  for (let i = start; i < answer.length; i++) {
+    const c = answer[i]!;
+    if (inStr) {
+      if (c === "\\") i++;
+      else if (c === '"') inStr = false;
+    } else if (c === '"') inStr = true;
+    else if (c === "{") depth++;
+    else if (c === "}" && --depth === 0) return { json: answer.slice(start, i + 1), index: start };
+  }
+  return undefined;
 }
 
 const sameSet = (a: number[], b: number[]) => a.length === b.length && a.every((x) => b.includes(x));

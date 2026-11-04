@@ -527,6 +527,15 @@ export class Run {
               break;
             case "waiting":
               this.setAgent(agentId, "waiting-for-human", ev.message);
+              if (ev.requestId && adapter.respond) {
+                // The runtime asked a person something: ask in Agent Town's approval banner.
+                const requestId = ev.requestId;
+                void this.requestApproval(node, { kind: "tool", message: ev.message, tool: ev.action ?? "runtime", category: "runtime", agentId }).then((d) =>
+                  adapter.respond!(sessionId, requestId, d.approved, d.note).catch((err) =>
+                    this.emit({ ...base, type: "runtime.event", kind: "log", message: `Couldn't pass your answer to ${runtime}: ${(err as Error).message}` }),
+                  ),
+                );
+              }
               break;
             case "log":
               this.emit({ ...base, type: "runtime.event", kind: "log", message: ev.message });

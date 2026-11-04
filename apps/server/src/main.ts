@@ -1,3 +1,4 @@
+import { mkdirSync } from "node:fs";
 import { createServer } from "node:http";
 import { resolve } from "node:path";
 import { createApp } from "./app";
@@ -19,8 +20,15 @@ if (opencodeUrl && !/^https?:\/\/(127\.0\.0\.1|localhost|\[::1\])(:\d+)?\/?$/.te
 }
 const opencode =
   opencodeUrl && /^https?:\/\/(127\.0\.0\.1|localhost|\[::1\])(:\d+)?\/?$/.test(opencodeUrl)
-    ? { baseUrl: opencodeUrl, password: process.env.OPENCODE_SERVER_PASSWORD, directory: resolve(process.env.AGENT_TOWN_WORKDIR ?? process.cwd()) }
+    ? { baseUrl: opencodeUrl, password: process.env.OPENCODE_SERVER_PASSWORD, directory: opencodeWorkdir() }
     : undefined;
+
+/** OpenCode sessions run in an empty scratch folder (never this project), unless you choose another. */
+function opencodeWorkdir(): string {
+  const dir = resolve(process.env.AGENT_TOWN_WORKDIR ?? resolve(DATA, "opencode-work"));
+  mkdirSync(dir, { recursive: true });
+  return dir;
+}
 
 // Hosted access (docs/hosting.md): off unless all four are set. The tunnel port also binds to
 // 127.0.0.1 — only cloudflared on this PC connects to it, and every request needs a valid

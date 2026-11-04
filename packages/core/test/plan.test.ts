@@ -67,6 +67,19 @@ describe("main agent plans", () => {
     expect(() => parsePlan("no plan here", team)).toThrow(PlanError);
   });
 
+  it("reads plans the way real models write them", () => {
+    const sloppy = { reply: "ok", steps: [{ who: " writer ", title: "x".repeat(200), what: "Write", after: "1", reviewBy: "", needsApproval: "true", outputFile: "my file?.md" }] };
+    const bare = `Sure! Here is the plan:\n${JSON.stringify(sloppy)}\nLet me know.`;
+    const p = parsePlan(bare, team);
+    expect(p.steps[0]).toMatchObject({ who: "writer", needsApproval: true });
+    expect(p.steps[0]!.title).toHaveLength(80);
+    expect(p.steps[0]!.reviewBy).toBeUndefined();
+    expect(p.steps[0]!.outputFile).toBeUndefined();
+    expect(parsePlan("```JSON\r\n" + JSON.stringify({ steps: [] }) + "\r\n```", team).steps).toEqual([]);
+    const many = { steps: Array.from({ length: 9 }, () => ({ who: "writer", title: "t", what: "w" })) };
+    expect(() => parsePlan(JSON.stringify(many), team)).toThrow(PlanError);
+  });
+
   it("runs side by side when steps wait for the same step, and ends with the main agent", () => {
     const plan = parsePlan(
       "```plan\n" +

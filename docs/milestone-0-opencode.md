@@ -78,6 +78,30 @@ Run on the user's machine (Windows 11, Node v24.22.1) on 2026-11-03 with `--serv
 - `agent.list` exposes OpenCode's own agents (e.g. `build`) with the user's permission rules (ask on `.env`, deny `git push` etc.). Agent Town sessions should run as `build` unless configured otherwise, and `permission.asked` → waiting-for-human.
 - Report hygiene: the org id (`org_…`) appeared unmasked. It is not a secret, but it is now masked too.
 
+### 3rd run (2026-11-04)
+- Same setup: OpenCode **2.2.0**, `opencode serve` reachable, SDK check OK, event stream connected. Only `server.connected` was seen, because no prompt was sent.
+- `@opencode/client@2.2.0` has `permission.reply({ sessionID, requestID, decision: "once" | "always" | "reject", message })`. The adapter now uses it.
+- `opencode-go/deepseek-v4.1-flash` (OpenCode Go subscription) is the **user's chosen model for the first real test**.
+- Free alternatives in the list: `opencode/deepseek-v4.1-flash-free`, `opencode/glm-5.3-flash-free`, `opencode/mimo-v2.6-flash-free`.
+
+## First real run (phase 3)
+Start Agent Town together with OpenCode:
+```
+npm run dev:opencode
+```
+- **What it does:**
+  - starts `opencode serve` on 127.0.0.1:4096 with a fresh random password, in the empty folder `data/opencode-work`
+  - starts Agent Town with the OpenCode runtime switched on
+  - Ctrl+C stops both
+- **How sessions are locked down:**
+  - Every OpenCode tool is denied, so agents answer in text and Agent Town saves the results.
+  - An agent allowed to use the shell gets it back only as "ask".
+  - Anything OpenCode asks about appears in Agent Town's approval banner and Inbox. "Approve" allows that one request only.
+- **What spends:**
+  - Only workspaces or agents whose runtime is **OpenCode**. Everything else stays on the free practice runtime.
+  - Sending a message to a main agent on OpenCode spends a little (the planning call). Run plan spends for each step.
+  - The workspace's cost cap stops a run when it's reached.
+
 ## The OpenCode adapter (Milestone 2, built 2026-11-03, mocks only)
 
 `packages/adapter-opencode`: built on `@opencode/client@2.2.0` (pinned) against its type definitions and the findings above. **It has not been run against a real OpenCode server yet**: no real runs and no spend so far.

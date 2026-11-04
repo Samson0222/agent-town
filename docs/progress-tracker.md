@@ -8,6 +8,11 @@ Update this file whenever the current phase, active feature, or implementation s
 
 ## Current Goal
 
+- 2026-11-04: **Phase 3 (real OpenCode runs) is ready to try.** The user approved DeepSeek V4.1 Flash (OpenCode Go).
+  - Built: `respond()`, locked-down sessions, `npm run dev:opencode`, a more forgiving plan reader.
+  - Waiting for: the user's first real run on their PC.
+  - Cloudflare isn't live yet: `agents.devsam.my` has no DNS record.
+
 - 2026-11-04 (autonomous session, user away): roadmap phases **1 Workspaces ✅, 2 Main agent ✅, 4 Stay in control ✅, 5 Squads + invites ✅, 6 Workflows as saved plans ✅** are built, tested and pushed.
   - Phases 3 (real runs), 7 (real tools) and 8 (Claude Code) wait for the user's approval.
   - Decisions are in discussion.md.
