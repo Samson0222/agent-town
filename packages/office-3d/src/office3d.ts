@@ -3,6 +3,7 @@ import { Crowd, type Person, type Status } from "./crowd";
 import type { OfficePlan } from "./layout";
 import { Town, phaseAt, SKY, type Phase } from "./town";
 import { crisp, pixTexture, texBox, type Kind } from "./pix";
+import { PixelPost } from "./post";
 
 /**
  * The 3D office view. Same interface as the 2D PixelOffice (setAgents, agentAt,
@@ -34,6 +35,22 @@ const HAIR = ["#5a3a22", "#d4a017", "#1b1b1b", "#e6e6e6", "#7a3e12", "#2b1d16"];
 const PANTS = ["#2f3e5c", "#3a3a3a", "#4b3b2a", "#2e4a3b", "#333344", "#5c2f3e"];
 
 const WALL_H = 2.3;
+
+/** A vertical sky gradient (top, horizon); the pixel pass turns it into dithered bands. */
+function skyTexture(top: string, bottom: string) {
+  const c = document.createElement("canvas");
+  c.width = 4;
+  c.height = 128;
+  const x = c.getContext("2d")!;
+  const gr = x.createLinearGradient(0, 0, 0, 128);
+  gr.addColorStop(0, top);
+  gr.addColorStop(1, bottom);
+  x.fillStyle = gr;
+  x.fillRect(0, 0, 4, 128);
+  const t = crisp(c);
+  t.magFilter = THREE.LinearFilter;
+  return t;
+}
 const DESK_SPAN = 7.4;
 
 function hash(s: string) {
@@ -59,7 +76,8 @@ export class Office3D {
   selectedId: string | null = null;
   private renderer: THREE.WebGLRenderer;
   private scene = new THREE.Scene();
-  private camera = new THREE.OrthographicCamera(-10, 10, 10, -10, 0.1, 200);
+  private camera = new THREE.OrthographicCamera(-10, 10, 10, -10, 8, 90);
+  private post: PixelPost;
   private crowd = new Crowd();
   private rigs = new Map<string, Rig>();
   private furniture = new THREE.Group();
@@ -93,11 +111,10 @@ export class Office3D {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
     this.renderer.setPixelRatio(1); // drawn small, then scaled up crisp: that is the pixel-art look
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.05;
-    this.scene.background = new THREE.Color(SKY.day);
+    this.post = new PixelPost(64, 64, 8, 90);
+    this.scene.background = skyTexture(...SKY.day);
 
     this.hemi = new THREE.HemisphereLight("#fff7ec", "#6d7a5a", 1.7);
     this.scene.add(this.hemi);
@@ -106,10 +123,11 @@ export class Office3D {
     sun.position.set(-6, 14, 9);
     sun.castShadow = true;
     sun.shadow.mapSize.set(2048, 2048);
-    sun.shadow.camera.left = -14;
-    sun.shadow.camera.right = 14;
-    sun.shadow.camera.top = 14;
-    sun.shadow.camera.bottom = -14;
+    sun.shadow.camera.left = -22;
+    sun.shadow.camera.right = 22;
+    sun.shadow.camera.top = 22;
+    sun.shadow.camera.bottom = -22;
+    sun.shadow.camera.far = 90;
     sun.shadow.bias = -0.0005;
     this.scene.add(sun, sun.target);
     this.scene.add(this.furniture);
@@ -124,11 +142,13 @@ export class Office3D {
   private applyPhase(p: Phase) {
     this.phase = p;
     const look = {
-      day: { sky: SKY.day, hemi: ["#fff7ec", "#6d7a5a", 1.7], sun: ["#fff4e0", 2.3, [-6, 14, 9]] },
-      dusk: { sky: SKY.dusk, hemi: ["#ffd9b8", "#4a3f66", 1.25], sun: ["#ff9a5c", 1.7, [-12, 6, 7]] },
-      night: { sky: SKY.night, hemi: ["#8fa6ff", "#1a1f3a", 1.0], sun: ["#9db4ff", 0.8, [-6, 14, 9]] },
-    }[p] as { sky: string; hemi: [string, string, number]; sun: [string, number, [number, number, number]] };
-    (this.scene.background as THREE.Color).set(look.sky);
+      day: { sky: SKY.day, hemi: ["#fff1d6", "#7a8a4a", 1.5], sun: ["#ffe7c2", 2.4, [-6, 14, 9]], grade: [1.06, 1.0, 0.92] },
+      dusk: { sky: SKY.dusk, hemi: ["#ffd9b8", "#4a3f66", 1.2], sun: ["#ff9a5c", 1.8, [-12, 6, 7]], grade: [1.1, 0.98, 0.9] },
+      night: { sky: SKY.night, hemi: ["#8fa6ff", "#1a1f3a", 1.0], sun: ["#9db4ff", 0.8, [-6, 14, 9]], grade: [0.95, 1.0, 1.1] },
+    }[p] as { sky: [string, string]; hemi: [string, string, number]; sun: [string, number, [number, number, number]]; grade: [number, number, number] };
+    (this.scene.background as THREE.Texture | null)?.dispose();
+    this.scene.background = skyTexture(...look.sky);
+    this.post.setGrade(look.grade);
     this.hemi.color.set(look.hemi[0]);
     this.hemi.groundColor.set(look.hemi[1]);
     this.hemi.intensity = look.hemi[2];
@@ -202,6 +222,7 @@ export class Office3D {
       if (Array.isArray(mat)) mat.forEach((x) => x.dispose());
       else mat?.dispose();
     });
+    this.post.dispose();
     this.renderer.dispose();
   }
 
@@ -214,6 +235,7 @@ export class Office3D {
     // Chunky pixels: render at a fraction of the screen size.
     const P = Math.max(1.5, Math.min(w, h) / 340);
     this.renderer.setSize(Math.ceil(w / P), Math.ceil(h / P), false);
+    this.post.setSize(Math.ceil(w / P), Math.ceil(h / P));
     const plan = this.crowd.plan;
     const cx = (plan.minX + plan.maxX) / 2;
     const cz = (plan.minZ + plan.maxZ) / 2;
@@ -225,8 +247,8 @@ export class Office3D {
     // Fit the floor and walls: project the room's corners into camera space.
     const inv = this.camera.matrixWorldInverse;
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-    const M = 2.6; // a strip of town around the office stays in view
-    for (const x of [plan.minX - M, plan.maxX + M]) for (const z of [plan.minZ - M, plan.maxZ + M]) for (const y of [0, WALL_H]) {
+    const M = 3.4; // a strip of town around the office stays in view
+    for (const x of [plan.minX - M, plan.maxX + 7.5]) for (const z of [plan.minZ - M, plan.maxZ + 7]) for (const y of [-3, WALL_H]) {
       const p = new THREE.Vector3(x, y, z).applyMatrix4(inv);
       minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x); minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
     }
@@ -277,7 +299,7 @@ export class Office3D {
       m.color.set(c);
       m.emissiveIntensity = s && s !== "idle" ? 1.4 + Math.sin(now * 4 + i) * 0.4 : 0.15;
     });
-    this.renderer.render(this.scene, this.camera);
+    this.post.render(this.renderer, this.scene, this.camera);
     this.opts.onFrame?.();
   };
 

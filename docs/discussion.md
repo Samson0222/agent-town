@@ -2,6 +2,16 @@
 
 Newest first. Record decisions and open points from each session.
 
+## 2026-11-04 — Hand-painted pixel-art finish; the town floats on a cliff island
+
+From the user's reference pictures (timber houses, warm light, dark outlines, dithered shading, cliffs and waterfalls):
+- **Pixel pass** (`packages/office-3d/src/post.ts`): the low-res render gets dark outlines where depth or surface direction changes, a warm colour grade, a limited palette and ordered dithering.
+- **Island:** the town sits on a floating grass island with stepped rock below, a stream that runs off the east edge as a waterfall, drifting clouds and small rocks. Carts turn round at the edge.
+- **Buildings:** doors with steps, lanterns, stone chimneys, awnings, ivy, barrels; brighter tiled roofs; a fountain replaces the pond.
+- The camera now keeps the south and east cliffs in view, so the office is a bit smaller on screen.
+- Sky is a gradient per time of day; dusk and night colours and lamps unchanged.
+- Open point: the 2D office is still the old art.
+
 ## 2026-11-04 — Medieval pixel-art style for the 3D town; icon-only sidebar toggle
 
 The user prefers a medieval pixel-art look.

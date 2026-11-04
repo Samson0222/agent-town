@@ -19,10 +19,27 @@ export function phaseAt(date = new Date()): Phase {
   return "night";
 }
 
-export const SKY: Record<Phase, string> = { day: "#8fd0f5", dusk: "#e8976b", night: "#0c1230" };
+/** Sky gradient: [top, horizon]. */
+export const SKY: Record<Phase, [string, string]> = { day: ["#4f9fe0", "#d6ecf2"], dusk: ["#4a3f84", "#f6a86a"], night: ["#060a1c", "#1c2652"] };
 
 type Glow = { mat: THREE.MeshStandardMaterial; on: number; at: Phase[] };
 type Cart = { g: THREE.Group; dir: number; speed: number; legs: THREE.Object3D[] };
+
+function waterTexture() {
+  const c = document.createElement("canvas");
+  c.width = 8;
+  c.height = 32;
+  const x = c.getContext("2d")!;
+  x.fillStyle = "#4aa3e8";
+  x.fillRect(0, 0, 8, 32);
+  x.fillStyle = "#a9dcff";
+  for (const [i, j, h] of [[1, 2, 6], [4, 10, 8], [6, 20, 5], [2, 24, 6], [5, 4, 3]] as const) x.fillRect(i, j, 1, h);
+  x.fillStyle = "#2f7fc4";
+  for (const [i, j, h] of [[0, 14, 6], [3, 18, 7], [7, 7, 5]] as const) x.fillRect(i, j, 1, h);
+  const t = crisp(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  return t;
+}
 
 function rng(seed: number) {
   let s = seed >>> 0 || 1;
@@ -127,6 +144,10 @@ export class Town {
   private sails?: THREE.Group;
   private water?: THREE.Mesh;
   private roadX: [number, number];
+  private roadZ = 0;
+  private clouds: THREE.Object3D[] = [];
+  private fall?: THREE.MeshStandardMaterial;
+  private bounds = { x0: 0, x1: 0, z0: 0, z1: 0 };
   private phase: Phase = "day";
   /** Warm lights inside the office for evening and night. */
   readonly indoor: THREE.PointLight[] = [];
@@ -138,14 +159,44 @@ export class Town {
     const r = rng(11);
     const GROUND = -0.5;
 
-    // Grass, cobbled square, road
-    g.add(tbx(220, 0.2, 220, "grass", "#6fbf5a", cx, GROUND - 0.1, cz, 2.2, { receive: true }));
-    g.add(tbx(plan.maxX - plan.minX + 2.6, 0.08, plan.maxZ - plan.minZ + 2.6, "cobble", "#cfc7b6", cx, GROUND + 0.04, cz, 1.6, { receive: true }));
+    // The town floats on its own island: grass on top, stepped rock below.
+    const ix0 = plan.minX - 12.5;
+    const ix1 = plan.maxX + 12;
+    const iz0 = plan.minZ - 9.5;
+    const iz1 = plan.maxZ + 7.4;
+    this.bounds = { x0: ix0, x1: ix1, z0: iz0, z1: iz1 };
+    const iw = ix1 - ix0;
+    const icx = (ix0 + ix1) / 2;
+    const icz = (iz0 + iz1) / 2;
+    g.add(tbx(iw, 0.4, iz1 - iz0, "grass", "#79b04c", icx, GROUND - 0.2, icz, 2.2, { receive: true }));
+    g.add(tbx(iw + 0.3, 0.5, iz1 - iz0 + 0.3, "dirt", "#8b6a45", icx, GROUND - 0.55, icz, 1.6));
+    for (let k = 1; k <= 7; k++) {
+      const shrink = k * 2.6 + (k % 2) * 0.8;
+      g.add(tbx(iw - shrink * 1.6, 1.0, iz1 - iz0 - shrink, "rock", k % 2 ? "#a58461" : "#8f7050", icx, GROUND - 1.2 - k * 0.95, icz, 1.8, { receive: true }));
+    }
+    // A few small rocks drifting below
+    for (let i = 0; i < 5; i++) g.add(tbx(0.8 + r() * 0.9, 0.7 + r() * 0.5, 0.8 + r() * 0.8, "rock", "#8f7050", ix0 - 3 + r() * (iw + 6), -10.5 - r() * 3, iz0 + r() * (iz1 - iz0), 1.2, { cast: true }));
+    // Clouds drifting past below the island
+    for (let i = 0; i < 6; i++) {
+      const cl = new THREE.Group();
+      const m = new THREE.MeshStandardMaterial({ color: "#ffffff", emissive: "#9bb4d8", emissiveIntensity: 0.35, roughness: 1, flatShading: true });
+      for (let k = 0; k < 4; k++) {
+        const b = new THREE.Mesh(new THREE.IcosahedronGeometry(0.9 + r() * 0.8, 0), m);
+        b.scale.y = 0.55;
+        b.position.set(k * 1.1 - 1.6, r() * 0.3, (r() - 0.5) * 0.8);
+        cl.add(b);
+      }
+      cl.position.set(ix0 - 6 + r() * (iw + 12), -8 - r() * 2.5, iz0 - 4 + r() * (iz1 - iz0 + 8));
+      this.clouds.push(cl);
+      g.add(cl);
+    }
+    g.add(tbx(plan.maxX - plan.minX + 2.6, 0.08, plan.maxZ - plan.minZ + 2.6, "cobble", "#d8cdb6", cx, GROUND + 0.04, cz, 1.6, { receive: true }));
     const roadZ = plan.maxZ + 3.7;
-    this.roadX = [cx - 36, cx + 36];
-    g.add(tbx(72, 0.08, 1.1, "cobble", "#cfc7b6", cx, GROUND + 0.04, plan.maxZ + 1.75, 1.6, { receive: true }));
-    g.add(tbx(72, 0.06, 2.8, "dirt", "#a8896a", cx, GROUND + 0.03, roadZ, 1.6, { receive: true }));
-    g.add(tbx(72, 0.08, 1.1, "cobble", "#cfc7b6", cx, GROUND + 0.04, roadZ + 1.95, 1.6, { receive: true }));
+    this.roadZ = roadZ;
+    this.roadX = [ix0 + 0.6, ix1 - 0.6];
+    g.add(tbx(iw, 0.08, 1.1, "cobble", "#d8cdb6", icx, GROUND + 0.04, plan.maxZ + 1.75, 1.6, { receive: true }));
+    g.add(tbx(iw, 0.06, 2.8, "dirt", "#b0895f", icx, GROUND + 0.03, roadZ, 1.6, { receive: true }));
+    g.add(tbx(iw, 0.08, 0.9, "cobble", "#d8cdb6", icx, GROUND + 0.04, roadZ + 1.85, 1.6, { receive: true }));
     // Hedges and flowers along the square
     for (let i = 0; i < 9; i++) {
       const fx = plan.minX + 1 + i * ((plan.maxX - plan.minX - 2) / 8);
@@ -159,7 +210,7 @@ export class Town {
     const walls = ["#e8d9b5", "#d9c7a0", "#cfd8c0", "#e2c9a8"];
     const roofs = ["#a8442f", "#8c3b2a", "#3f5f8a", "#5a6b3a"];
     let x = plan.minX - 8;
-    for (let i = 0; x < plan.maxX + 16; i++) {
+    for (let i = 0; x < ix1 - 4; i++) {
       const pick = r();
       if (pick < 0.4) {
         const w = 2.8 + r() * 1.4;
@@ -181,38 +232,60 @@ export class Town {
       const z = plan.minZ + 1.2 + i * 4.4;
       g.add(this.timberHouse(2.6, 1.8, 2.6, plan.minX - 5.2 - (i % 2) * 1.2, z, walls[(i + 1) % walls.length]!, roofs[(i + 2) % roofs.length]!, r));
     }
-    g.add(this.windmill(plan.minX - 11.5, plan.maxZ - 0.5));
+    g.add(this.windmill(plan.minX - 10.2, plan.maxZ - 0.8));
 
     // East: market stalls, a well, a pond and trees (all low)
     const px = plan.maxX + 6.4;
     const pz = cz;
-    const pond = new THREE.Mesh(new THREE.CylinderGeometry(1.9, 1.9, 0.06, 20), new THREE.MeshStandardMaterial({ color: "#4a9ee0", roughness: 0.3, emissive: "#1d5f9e", emissiveIntensity: 0.25 }));
-    pond.scale.z = 0.7;
-    pond.position.set(px + 1.2, GROUND + 0.09, pz + 2.2);
-    pond.receiveShadow = true;
+    const fx = px + 0.6;
+    const fz = pz + 2.2;
+    const basin = new THREE.Mesh(new THREE.CylinderGeometry(1.25, 1.35, 0.4, 8), mat("#cfc7b6", { map: pixTexture("stone", 4, 1) }));
+    basin.position.set(fx, GROUND + 0.2, fz);
+    basin.castShadow = basin.receiveShadow = true;
+    const pond = new THREE.Mesh(new THREE.CylinderGeometry(1.05, 1.05, 0.05, 8), new THREE.MeshStandardMaterial({ color: "#4aa3e8", roughness: 0.3, emissive: "#1d6fb8", emissiveIntensity: 0.35 }));
+    pond.position.set(fx, GROUND + 0.4, fz);
     this.water = pond;
-    g.add(pond);
+    const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.22, 1.1, 8), mat("#d8d0bf", { map: pixTexture("stone", 2, 2) }));
+    pillar.position.set(fx, GROUND + 0.8, fz);
+    pillar.castShadow = true;
+    const bowl = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.2, 0.18, 8), mat("#cfc7b6", { map: pixTexture("stone", 2, 1) }));
+    bowl.position.set(fx, GROUND + 1.25, fz);
+    bowl.castShadow = true;
+    g.add(basin, pond, pillar, bowl);
+    for (let i = 0; i < 4; i++) {
+      const a = (i / 4) * Math.PI * 2 + 0.4;
+      g.add(bx(0.07, 0.5, 0.07, "#8fd0ff", fx + Math.cos(a) * 0.38, GROUND + 1.0, fz + Math.sin(a) * 0.38));
+    }
+    // A stream from the fountain runs over the island's east edge as a waterfall.
+    const wt = waterTexture();
+    this.fall = new THREE.MeshStandardMaterial({ map: wt, roughness: 0.4, emissive: "#2a7fd0", emissiveIntensity: 0.3 });
+    const streamLen = ix1 - (fx + 1.3);
+    const stream = new THREE.Mesh(new THREE.BoxGeometry(streamLen, 0.05, 0.9), this.fall);
+    stream.position.set(fx + 1.3 + streamLen / 2, GROUND + 0.05, fz);
+    const fall = new THREE.Mesh(new THREE.BoxGeometry(0.1, 9, 0.9), this.fall);
+    fall.position.set(ix1 + 0.05, GROUND - 4.45, fz);
+    g.add(stream, fall);
     g.add(this.stall(plan.maxX + 3.6, plan.minZ + 0.2, "#c0392b"));
     g.add(this.stall(plan.maxX + 3.6, plan.minZ + 2.8, "#2b6cb0"));
     g.add(this.well(plan.maxX + 3.1, plan.maxZ - 0.4));
     for (let i = 0; i < 16; i++) {
-      const tx = plan.maxX + 7 + r() * 9;
+      const tx = plan.maxX + 7 + r() * 4;
       const tz = plan.minZ - 3 + r() * (plan.maxZ - plan.minZ + 4.6);
-      if (Math.hypot(tx - px - 1.2, (tz - pz - 2.2) / 0.7) < 3) continue;
+      if (Math.abs(tz - fz) < 1.4 || Math.hypot(tx - fx, tz - fz) < 2.2) continue;
       this.tree(tx, tz, 0.8 + r() * 0.55, r() < 0.45, r);
     }
     for (let i = 0; i < 12; i++) this.tree(plan.minX - 3.3 + r() * 2, plan.minZ - 1 + r() * (plan.maxZ - plan.minZ + 3), 0.7 + r() * 0.4, r() < 0.5, r);
-    for (let i = 0; i < 14; i++) this.tree(cx - 30 + i * 4.5 + r() * 2, roadZ + 3.5 + r() * 1.5, 0.8 + r() * 0.5, r() < 0.4, r);
+    for (let i = 0; i < 12; i++) this.tree(ix0 + 2 + i * ((iw - 4) / 11) + r(), roadZ + 2.7, 0.55 + r() * 0.3, r() < 0.5, r);
 
     // Torches along the square
-    for (let lx = plan.minX - 6; lx < plan.maxX + 14; lx += 5.5) this.torch(lx, plan.maxZ + 2.1);
+    for (let lx = plan.minX - 6; lx < ix1 - 1; lx += 5.5) this.torch(lx, plan.maxZ + 2.1);
 
     // Horse carts on the road
     const cloth = ["#9b2226", "#1d4e89", "#2d6a4f", "#b08900", "#6a3d9a"];
     for (let i = 0; i < 4; i++) {
       const dir = i % 2 ? -1 : 1;
       const cart = this.cart(cloth[i % cloth.length]!, i === 1);
-      cart.g.position.set(this.roadX[0] + r() * 72, GROUND + 0.1, roadZ + dir * -0.65);
+      cart.g.position.set(this.roadX[0] + 2 + r() * (iw - 5), GROUND + 0.1, roadZ + dir * -0.65);
       cart.g.rotation.y = dir > 0 ? 0 : Math.PI;
       this.carts.push({ g: cart.g, dir, speed: 0.9 + r() * 0.8, legs: cart.legs });
       g.add(cart.g);
@@ -241,8 +314,11 @@ export class Town {
   update(t: number, dt: number) {
     for (const c of this.carts) {
       c.g.position.x += c.dir * c.speed * dt;
-      if (c.g.position.x > this.roadX[1]) c.g.position.x = this.roadX[0];
-      if (c.g.position.x < this.roadX[0]) c.g.position.x = this.roadX[1];
+      if ((c.g.position.x > this.roadX[1] && c.dir > 0) || (c.g.position.x < this.roadX[0] && c.dir < 0)) {
+        c.dir = -c.dir; // turn round at the island's edge
+        c.g.rotation.y = c.dir > 0 ? 0 : Math.PI;
+        c.g.position.z = this.roadZ - c.dir * 0.65;
+      }
       c.legs.forEach((leg, i) => (leg.rotation.z = Math.sin(t * c.speed * 7 + (i % 2 ? Math.PI : 0)) * 0.5));
     }
     this.trees.forEach((tr, i) => {
@@ -251,6 +327,11 @@ export class Town {
     });
     this.flags.forEach((f, i) => (f.rotation.y = Math.sin(t * 2.4 + i * 1.3) * 0.35));
     if (this.sails) this.sails.rotation.x = t * 0.45;
+    if (this.fall?.map) this.fall.map.offset.y = -t * 0.9;
+    for (const [i, c] of this.clouds.entries()) {
+      c.position.x += dt * (0.25 + (i % 3) * 0.1);
+      if (c.position.x > this.bounds.x1 + 8) c.position.x = this.bounds.x0 - 8;
+    }
     if (this.water) this.water.scale.x = 1 + Math.sin(t * 1.3) * 0.015;
     const base = this.phase === "day" ? 0.7 : 2.4;
     this.torches.forEach((m, i) => (m.emissiveIntensity = base * (0.85 + 0.15 * Math.sin(t * 9 + i * 2.1) + 0.08 * Math.sin(t * 23 + i))));
@@ -294,7 +375,27 @@ export class Town {
     const body = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), [this.wallMat("plaster", wall, w, rows, r), mat(wall), mat("#8a6f4a"), mat(wall), this.wallMat("plaster", wall, w, rows, r), mat(wall)]);
     body.position.y = h / 2 + 0.05;
     body.castShadow = body.receiveShadow = true;
-    grp.add(stone, body, this.roof(w + 0.5, 1.5 + h * 0.15, d + 0.5, roof, h + 0.05), bx(0.34, 0.9, 0.34, "#7a6a5a", w * 0.22, h + 0.9, -d * 0.18, { cast: true }));
+    const rh = 1.5 + h * 0.15;
+    grp.add(stone, body, this.roof(w + 0.5, rh, d + 0.5, roof, h + 0.05));
+    // Stone chimney with a cap, a wooden door with steps and a lantern, an awning, ivy and a barrel.
+    grp.add(tbx(0.38, 1.0, 0.38, "stone", "#a79f93", w * 0.22, h + rh * 0.55, -d * 0.18, 0.5, { cast: true }), bx(0.5, 0.08, 0.5, "#6f6a62", w * 0.22, h + rh * 0.55 + 0.54, -d * 0.18));
+    const dx = -w * 0.22;
+    grp.add(tbx(0.5, 0.85, 0.06, "plank", "#7a4a2a", dx, 0.42, d / 2 + 0.03, 0.4), bx(0.5, 0.08, 0.08, "#4a2f1a", dx, 0.86, d / 2 + 0.04), tbx(0.7, 0.1, 0.35, "stone", "#9a9288", dx, -0.1, d / 2 + 0.22, 0.5));
+    const lamp = new THREE.MeshStandardMaterial({ color: "#ffd27a", emissive: "#ff9a2f", roughness: 0.5 });
+    lamp.emissiveIntensity = 1.0;
+    this.torches.push(lamp);
+    grp.add(bx(0.05, 0.05, 0.2, "#2b2b30", dx + 0.55, 0.95, d / 2 + 0.1), new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.2, 0.14), lamp));
+    (grp.children[grp.children.length - 1] as THREE.Mesh).position.set(dx + 0.55, 0.8, d / 2 + 0.2);
+    if (r() < 0.6) {
+      for (let i = 0; i < 6; i++) grp.add(bx(0.2 + r() * 0.2, 0.16, 0.06, i % 2 ? "#3f8a3f" : "#2f6f35", w / 2 + 0.02 + (i % 2) * 0.02, 0.2 + i * 0.28 + r() * 0.1, -d * 0.3 + r() * 0.5));
+    }
+    if (r() < 0.55) {
+      const aw = bx(w * 0.5, 0.06, 0.55, "#b3412c", w * 0.22, 1.05, d / 2 + 0.3);
+      aw.rotation.x = 0.35;
+      aw.castShadow = true;
+      grp.add(aw, bx(w * 0.5, 0.05, 0.1, "#f1e6c0", w * 0.22, 0.82, d / 2 + 0.55));
+    }
+    grp.add(tbx(0.34, 0.45, 0.34, "plank", "#a9743f", dx - 0.65, -0.05, d / 2 + 0.35, 0.4, { cast: true }));
     grp.position.set(x, 0, z);
     return grp;
   }

@@ -4,7 +4,7 @@ import * as THREE from "three";
  * Tiny hand-drawn-style textures (made in code, nearest-neighbour filtered) for the medieval pixel look.
  * They are light and neutral: a material's colour tints them.
  */
-export type Kind = "stone" | "plank" | "cobble" | "grass" | "tile" | "plaster" | "dirt";
+export type Kind = "stone" | "plank" | "cobble" | "grass" | "tile" | "plaster" | "dirt" | "rock";
 
 const base = new Map<Kind, THREE.CanvasTexture>();
 
@@ -66,7 +66,7 @@ function draw(kind: Kind): HTMLCanvasElement {
     }
     case "grass": {
       px(0, 0, 225, N, N);
-      for (let k = 0; k < 90; k++) px((r() * N) | 0, (r() * N) | 0, r() < 0.5 ? 195 : 250, 1, 1);
+      for (let k = 0; k < 60; k++) px((r() * N) | 0, (r() * N) | 0, r() < 0.5 ? 205 : 245, 1, 1);
       for (let k = 0; k < 10; k++) {
         const i = (r() * N) | 0;
         const j = (r() * N) | 0;
@@ -79,12 +79,26 @@ function draw(kind: Kind): HTMLCanvasElement {
       for (let row = 0; row < 4; row++) {
         for (let col = 0; col < 4; col++) {
           const bx = col * 8 + (row % 2 ? 4 : 0);
-          px(bx, row * 8, 200 + r() * 55, 8, 8);
-          px(bx, row * 8 + 7, 110, 8, 1);
-          px(bx + 7, row * 8, 150, 1, 8);
+          px(bx, row * 8, 190 + r() * 55, 8, 8);
+          px(bx, row * 8 + 6, 140, 8, 1);
+          px(bx, row * 8 + 7, 85, 8, 1);
+          px(bx + 7, row * 8, 130, 1, 8);
           px(bx + 1, row * 8, 255, 5, 1);
+          px(bx + 1, row * 8 + 1, 245, 3, 1);
         }
       }
+      break;
+    }
+    case "rock": {
+      px(0, 0, 205, N, N);
+      for (let row = 0; row < 4; row++) {
+        px(0, row * 8 + 7, 110, N, 1);
+        for (let k = 0; k < 3; k++) px((r() * N) | 0, row * 8 + ((r() * 6) | 0), 150, 1 + ((r() * 3) | 0), 1);
+        const cx = (r() * N) | 0;
+        px(cx, row * 8, 120, 1, 7);
+        px(cx + 1, row * 8, 245, 3, 1);
+      }
+      for (let k = 0; k < 40; k++) px((r() * N) | 0, (r() * N) | 0, 175 + r() * 70, 1, 1);
       break;
     }
     case "plaster": {
