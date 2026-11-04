@@ -254,8 +254,9 @@ export function practicePlan(prompt: string): Plan {
     return { id: id.trim(), name: name.trim() };
   });
   const squads = block(prompt, "squads").map((l) => {
-    const [id = "", name = ""] = l.split(" | ");
-    return { id: id.trim(), name: name.trim() };
+    const [id = "", name = "", lead = "", members = ""] = l.split(" | ");
+    const ids = [lead.replace(/^lead:\s*/, ""), ...members.replace(/^members:\s*/, "").split(",")].map((x) => x.trim()).filter(Boolean);
+    return { id: id.trim(), name: name.trim(), members: ids };
   });
   const lower = request.toLowerCase();
   const practice = "Practice run: no credit is spent.";
@@ -276,14 +277,14 @@ export function practicePlan(prompt: string): Plan {
   const short = request.length > 90 ? `${request.slice(0, 90)}…` : request;
 
   const steps: PlanStep[] = [];
-  const first = squad ? { id: squad.id, name: squad.name, role: "squad" } : workers[0] ?? reviewer!;
+  const first: Row = squad ? { id: squad.id, name: squad.name, role: "squad" } : (workers[0] ?? reviewer!);
   steps.push({
     who: squad ? squad.id : first.id,
     title: squad ? `${squad.name}: first pass` : `${first.role}: first pass`,
     what: `Work on this request from a ${squad ? "squad" : first.role.toLowerCase()}'s point of view and return a short result: ${short}`,
     needsApproval: false,
   });
-  const second = workers.find((w) => w !== first);
+  const second = workers.find((w) => w !== first && !squad?.members.includes(w.id));
   if (second) {
     steps.push({
       who: second.id,

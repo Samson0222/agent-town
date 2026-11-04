@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Trash2, UserPlus } from "lucide-react";
 import { api, errorText, formatUsd } from "@/lib/api";
@@ -130,6 +131,40 @@ export default function PeoplePage() {
         ))}
         {people?.length === 0 && <p className="muted p-4 text-sm">No one invited yet.</p>}
       </section>
+      <WorkspaceInvites />
     </div>
+  );
+}
+
+interface Invite {
+  email: string;
+  role: "operator" | "viewer";
+  teamId: string;
+  teamName: string;
+  dailyBudgetUsd?: number;
+  spentTodayUsd: number;
+}
+
+/** People invited to single workspaces (managed in each workspace's Settings). */
+function WorkspaceInvites() {
+  const [invites, setInvites] = useState<Invite[]>([]);
+  useEffect(() => {
+    api<Invite[]>("/api/workspace-invites").then(setInvites).catch(() => undefined);
+  }, []);
+  if (!invites.length) return null;
+  return (
+    <section className="panel mt-6 p-2">
+      <h2 className="section-title px-3 pb-1 pt-3">In one workspace</h2>
+      {invites.map((i) => (
+        <Link key={`${i.teamId}-${i.email}`} href={`/w/${encodeURIComponent(i.teamId)}/settings`} className="flex flex-wrap items-center gap-3 rounded-xl p-3 text-sm hover:bg-[var(--bg-soft)]">
+          <span className="min-w-0 flex-1 truncate font-medium">{i.email}</span>
+          <span className="muted">{i.teamName}</span>
+          <span className="chip" style={{ background: "var(--bg-soft)", color: "var(--ink-2)" }}>
+            {i.role === "operator" ? "Operator" : "Viewer"}
+          </span>
+          {i.role === "operator" && <span className="muted text-xs">{formatUsd(i.dailyBudgetUsd ?? 0)} / day · {formatUsd(i.spentTodayUsd)} used</span>}
+        </Link>
+      ))}
+    </section>
   );
 }

@@ -13,7 +13,9 @@ import type { Workflow, WorkflowNode } from "./workflow";
 export function resolveTeam(team: Team, library: AgentTemplate[], skills: Skill[] = []): Team {
   const byId = new Map(library.map((a) => [a.id, a]));
   // The main agent sits in the office too, first in line.
-  const ids = [...new Set([...(team.mainAgentId ? [team.mainAgentId] : []), ...team.memberIds])];
+  // Squads sit together: members are ordered squad by squad, so their desks end up side by side.
+  const bySquad = team.squads.flatMap((q) => [q.leadId, ...q.memberIds].filter((m) => m && team.memberIds.includes(m)));
+  const ids = [...new Set([...(team.mainAgentId ? [team.mainAgentId] : []), ...bySquad, ...team.memberIds])];
   const agents = ids.map((id) => byId.get(id)).filter((a): a is AgentTemplate => !!a);
   const used = new Set<string>();
   for (const a of agents) for (const r of a.skills) used.add(r.skillId);

@@ -89,13 +89,13 @@ function Table({ title, rows }: { title: string; rows: UsageRow[] }) {
   return (
     <section className="panel overflow-hidden">
       <h2 className="section-title px-5 pb-2 pt-4">{title}</h2>
-      <table className="w-full text-sm">
+      <table className="w-full table-fixed text-sm">
         <tbody>
-          {rows.map((r) => (
+          {rows.filter((r) => !(r.key === "-" && !r.usd)).map((r) => (
             <tr key={r.key} className="border-t" style={{ borderColor: "var(--line)" }}>
-              <td className="truncate px-5 py-2">{r.name ?? r.key}</td>
-              <td className="muted px-2 py-2 text-right text-xs">{r.tokens.toLocaleString()}</td>
-              <td className="px-5 py-2 text-right font-mono text-xs">{formatUsd(r.usd)}</td>
+              <td className="truncate px-5 py-2" title={r.name ?? r.key}>{r.name ?? r.key}</td>
+              <td className="muted w-20 px-2 py-2 text-right text-xs">{r.tokens.toLocaleString()}</td>
+              <td className="w-28 px-5 py-2 text-right font-mono text-xs">{formatUsd(r.usd)}</td>
             </tr>
           ))}
           {rows.length === 0 && (

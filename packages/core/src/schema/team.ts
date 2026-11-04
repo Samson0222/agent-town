@@ -83,7 +83,7 @@ export type Squad = z.infer<typeof Squad>;
 
 /** Someone invited to one workspace (hosted access). */
 export const WorkspaceInvite = z.object({
-  email: z.string().email(),
+  email: z.string().trim().toLowerCase().email(),
   role: z.enum(["operator", "viewer"]),
   dailyBudgetUsd: z.number().nonnegative().optional(),
 });

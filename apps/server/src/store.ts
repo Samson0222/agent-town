@@ -419,6 +419,17 @@ export class Store {
     return this.saveAgent({ ...base, id });
   }
 
+  /** Workspaces someone is invited to on their own (not on the People page), with their role in each. */
+  workspaceInvites(email: string): Record<string, { role: "operator" | "viewer"; dailyBudgetUsd?: number }> {
+    const e = email.toLowerCase();
+    const out: Record<string, { role: "operator" | "viewer"; dailyBudgetUsd?: number }> = {};
+    for (const t of this.listTeamsRaw()) {
+      const inv = t.access.find((a) => a.email.toLowerCase() === e);
+      if (inv) out[t.id] = { role: inv.role, dailyBudgetUsd: inv.dailyBudgetUsd };
+    }
+    return out;
+  }
+
   /** Main agent id → workspace id. */
   mainAgents(): Map<string, string> {
     return new Map(this.listTeamsRaw().filter((t) => t.mainAgentId).map((t) => [t.mainAgentId!, t.id]));

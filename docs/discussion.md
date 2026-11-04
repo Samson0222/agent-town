@@ -2,6 +2,28 @@
 
 Newest first. Record decisions and open points from each session.
 
+## 2026-11-04 — Phase 4 (stay in control) and phase 5 (squads, per-workspace invites) (autonomous; my decisions)
+
+- **Phase 4 was mostly built with phase 1:** Inbox (with a badge), Runs grouped Needs you / Running / Finished, Overview, Usage and Runtimes.
+  - Usage tables now drop empty rows (control steps have no agent) and truncate long names.
+- **Pause semantics (open point):** kept as is. Pause stops new steps from starting, and steps already running finish.
+  - *Why:* no engine change, nothing is lost mid-answer, and Stop still ends everything at once.
+- **Squads:** `team.squads[{id, name, leadId, memberIds}]`, managed in Settings → Squads.
+  - Members must be on the team, and the lead must be in the squad (the server checks both).
+  - A plan step for `squad:<id>` becomes one step per member (side by side), then a step for the lead that pulls the parts together. This is the "lead splits it" idea without nested plans, and the engine is unchanged.
+  - The practice planner gives the work to a squad when the request names it, and gives step 2 to someone outside it.
+  - **Office:** squad members are ordered together, so their desks sit side by side. This is the cheap version of "a desk cluster per squad"; real separate clusters are left for later (office styles).
+- **Invites per workspace:** `team.access[{email, role: operator|viewer, dailyBudgetUsd}]`, set in Settings → People. Only the owner can change it: the server keeps the old list when anyone else saves.
+  - Someone on the global People page keeps access everywhere, as before.
+  - Someone only in `access` gets `me.scope`:
+    - every request about a workspace is checked against their role there (workspace, workflow, run, plan or outside-agent ids are traced back to their workspace)
+    - lists are filtered to their workspaces
+    - shared things (agents, skills, new workspaces, usage across everything) are read-only for them
+    - their daily budget comes from that workspace's invite
+  - The People page lists these invites too.
+  - Cloudflare Access still has to allow the email; a one-line hint says so when hosted.
+- **Template workspaces** no longer copy the workflow's description into the goal. The goal is what you typed, or empty.
+
 ## 2026-11-04 — Phase 2: the main agent and the AI Agent screen (autonomous; my decisions)
 
 - **Planning is a run, not a hidden call.** The main agent plans in a one-step run (`purpose: "plan"`) and answers a sub-agent chat the same way (`purpose: "chat"`).

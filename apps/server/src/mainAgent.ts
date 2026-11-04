@@ -29,7 +29,7 @@ export interface LaunchOptions {
   inputs: Record<string, string>;
   purpose: RunPurpose;
   /** Who asked (hosted access), for budgets and the audit trail. */
-  me: { email: string; role: string; local: boolean; dailyBudgetUsd?: number };
+  me: { email: string; role: string; local: boolean; dailyBudgetUsd?: number; scope?: Record<string, { role: string; dailyBudgetUsd?: number }> };
 }
 
 export interface MainAgentDeps {

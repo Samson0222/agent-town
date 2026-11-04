@@ -185,3 +185,51 @@ describe("hosted access: roles", () => {
     expect(r.body.error).toMatch(/budget/);
   });
 });
+
+describe("hosted access: invites per workspace", () => {
+  const GUEST = "guest@example.com";
+  it("lets someone invited to one workspace see and use that workspace only", async () => {
+    const owner = as(OWNER);
+    const teams = (await call("/api/teams", { token: owner })).body;
+    const launch = teams.find((t: any) => t.id === "launch-team");
+    const other = teams.find((t: any) => t.id !== "launch-team");
+    expect((await call("/api/teams", { token: as(GUEST) })).status).toBe(403);
+    const put = await call(`/api/teams/${launch.id}`, { token: owner, method: "PUT", json: { ...launch, agents: [], access: [{ email: "Guest@Example.com", role: "operator", dailyBudgetUsd: 0 }] } });
+    expect(put.status).toBe(200);
+    expect(put.body.access[0].email).toBe(GUEST);
+
+    const guest = as(GUEST);
+    const mine = (await call("/api/teams", { token: guest })).body;
+    expect(mine.map((t: any) => t.id)).toEqual([launch.id]);
+    expect((await call("/api/me", { token: guest })).body.scope[launch.id].role).toBe("operator");
+    expect((await call(`/api/teams/${other.id}`, { token: guest })).status).toBe(403);
+    expect((await call(`/api/workspaces/${other.id}/plans`, { token: guest })).status).toBe(403);
+    expect((await call("/api/runs", { token: guest })).body.every((r: any) => r.teamId === launch.id)).toBe(true);
+    expect((await call("/api/workflows", { token: guest })).body.every((w: any) => w.teamId === launch.id)).toBe(true);
+    // can work in their workspace
+    expect((await call(`/api/workspaces/${launch.id}/chat/${launch.mainAgentId}`, { token: guest, method: "POST", json: { text: "Plan a tasting day" } })).status).toBe(200);
+    // but not elsewhere, and not on shared things
+    const otherWf = (await call("/api/workflows", { token: owner })).body.find((w: any) => w.teamId === other.id);
+    expect((await call("/api/runs", { token: guest, method: "POST", json: { workflowId: otherWf.id } })).status).toBe(403);
+    expect((await call("/api/agents", { token: guest, method: "POST", json: { name: "Sneaky" } })).status).toBe(403);
+    expect((await call("/api/workspaces", { token: guest, method: "POST", json: { name: "Mine" } })).status).toBe(403);
+    expect((await call("/api/usage", { token: guest })).status).toBe(403);
+    expect((await call(`/api/usage?teamId=${launch.id}`, { token: guest })).status).toBe(200);
+    // and can't invite anyone
+    const self = (await call(`/api/teams/${launch.id}`, { token: guest })).body;
+    const tried = await call(`/api/teams/${launch.id}`, { token: guest, method: "PUT", json: { ...self, agents: [], access: [...self.access, { email: "friend@example.com", role: "operator" }] } });
+    expect(tried.status).toBe(200);
+    expect(tried.body.access).toHaveLength(1);
+  });
+
+  it("checks squads", async () => {
+    const owner = as(OWNER);
+    const t = (await call("/api/teams/launch-team", { token: owner })).body;
+    const bad = await call(`/api/teams/${t.id}`, { token: owner, method: "PUT", json: { ...t, agents: [], squads: [{ id: "x", name: "X", leadId: "nobody", memberIds: [t.memberIds[0]] }] } });
+    expect(bad.status).toBe(400);
+    const ok = await call(`/api/teams/${t.id}`, { token: owner, method: "PUT", json: { ...t, agents: [], squads: [{ id: "words", name: "Words", leadId: t.memberIds[1], memberIds: [t.memberIds[1], t.memberIds[3]] }] } });
+    expect(ok.status).toBe(200);
+    // squad members sit together, right after the main agent
+    expect(ok.body.agents.slice(1, 3).map((a: any) => a.id)).toEqual([t.memberIds[1], t.memberIds[3]]);
+  });
+});

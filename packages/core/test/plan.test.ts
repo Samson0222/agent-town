@@ -96,6 +96,19 @@ describe("main agent plans", () => {
     expect(steps.map((s) => s.who)).toEqual(["reviewer", "writer", main.id]);
   });
 
+  it("the practice planner routes to a squad named in the request, then to someone outside it", () => {
+    const t = Team.parse({ ...team, squads: [{ id: "words", name: "Words squad", leadId: "writer", memberIds: ["writer", "reviewer"] }] });
+    const plan = practicePlan(plannerPrompt({ request: "Ask the Words squad for a tagline", team: t }));
+    expect(plan.steps[0]!.who).toBe("squad:words");
+    expect(["writer", "reviewer"]).not.toContain(plan.steps[1]!.who);
+    expect(() => parsePlan("```plan\n" + JSON.stringify(plan) + "\n```", t)).not.toThrow();
+  });
+
+  it("puts a teammate named in the request first (Request work)", () => {
+    const plan = practicePlan(plannerPrompt({ request: "For Casey: write the summary", team }));
+    expect(plan.steps[0]!.who).toBe("ceo");
+  });
+
   it("plans, runs and combines on the practice runtime end to end", async () => {
     const { e, events } = engine();
     const plan1 = singleStepWorkflow({ id: "plan-x", name: "Planning", teamId: team.id, agentId: main.id, label: "Plan", prompt: plannerPrompt({ request: "Launch a bakery", team }) });

@@ -35,6 +35,7 @@ import { applyAssignment, fetchGithubSkill, isAssigned, isChoices, skillFromFile
 import { AccessVerifier, AuthError, RateLimiter, ROLES, can, type Permission, type Role } from "./auth";
 import { REPORT_MAX_BYTES, hashToken, newToken, parseReport, presence } from "./reports";
 import { UserError, createMainAgent, type LaunchOptions } from "./mainAgent";
+import type { Store as StoreT } from "./store";
 
 export interface AppOptions {
   dbFile: string;
@@ -60,6 +61,11 @@ export interface Me {
   role: Role;
   local: boolean;
   dailyBudgetUsd?: number;
+  /**
+   * Invited to some workspaces only: their role in each (with that workspace's budget).
+   * Undefined = every workspace (the owner, people on the People page, this computer).
+   */
+  scope?: Record<string, { role: Role; dailyBudgetUsd?: number }>;
 }
 
 class HttpError extends Error {
@@ -153,7 +159,7 @@ export function createApp(opts: AppOptions) {
 
   if (opts.seedTemplates !== false && store.listTeams().length === 0) {
     for (const t of starterTemplates()) {
-      store.saveTeam(Team.parse({ ...t.team, goal: t.description }));
+      store.saveTeam(t.team);
       store.saveWorkflow(t.workflow);
     }
   }
@@ -223,7 +229,7 @@ export function createApp(opts: AppOptions) {
         ...t.team,
         id: teamId,
         name: name || `${t.team.name} (copy)`,
-        goal: String(b.goal ?? t.description).slice(0, 2000),
+        goal: String(b.goal ?? "").slice(0, 2000),
         officeStyle: b.officeStyle === "3d" ? "3d" : "2d",
         vault: teamId,
         agents: [],
@@ -388,9 +394,19 @@ export function createApp(opts: AppOptions) {
     if (store.getTeam(team.id)) fail(409, `Team ${team.id} already exists`);
     return store.saveTeam(team);
   });
-  route("PUT", "/api/teams/:id", (_q, _r, p, body) => {
+  route("PUT", "/api/teams/:id", (_q, _r, p, body, me) => {
     const existing = mustTeam(p.id!);
-    const team = Team.parse({ ...(body as object), id: p.id, mainAgentId: existing.mainAgentId });
+    const parsed = Team.parse({ ...(body as object), id: p.id, mainAgentId: existing.mainAgentId });
+    // Only the owner decides who is invited (and their budgets).
+    const team = me.role === "owner" && !me.scope ? parsed : { ...parsed, access: existing.access };
+    if (opts.access && team.access.some((a) => a.email.toLowerCase() === opts.access!.ownerEmail)) fail(400, "That's the owner");
+    if (new Set(team.access.map((a) => a.email.toLowerCase())).size !== team.access.length) fail(400, "Someone is invited twice");
+    for (const a of team.access) if (a.dailyBudgetUsd !== undefined && a.dailyBudgetUsd > 1000) fail(400, "Daily budget must be between 0 and 1000 USD");
+    for (const sq of team.squads) {
+      for (const m of sq.memberIds) if (!team.memberIds.includes(m)) fail(400, `${sq.name}: everyone in a squad must be on the team`);
+      if (sq.leadId && !sq.memberIds.includes(sq.leadId)) fail(400, `${sq.name}: the lead must be in the squad`);
+    }
+    if (new Set(team.squads.map((q) => q.id)).size !== team.squads.length) fail(400, "Two squads have the same id");
     const ids = team.memberIds.length ? team.memberIds : team.agents.map((a) => a.id);
     if (new Set(ids).size !== ids.length) fail(400, "An agent can only be in a team once");
     for (const id of team.memberIds) if (!store.getAgent(id)) fail(400, `Unknown agent "${id}"`);
@@ -503,7 +519,8 @@ export function createApp(opts: AppOptions) {
     // Operators spend the owner's credit only within their daily budget.
     let maxCostUsd: number | undefined;
     if (me.role === "operator" && spendsCredit(team)) {
-      const left = (me.dailyBudgetUsd ?? 0) - store.spentToday(me.email);
+      const budget = me.scope ? (me.scope[team.id]?.dailyBudgetUsd ?? 0) : me.dailyBudgetUsd;
+      const left = (budget ?? 0) - store.spentToday(me.email);
       if (left <= 0) fail(403, "Your daily budget for real runs is used up — ask the owner to raise it");
       maxCostUsd = left;
     }
@@ -529,7 +546,9 @@ export function createApp(opts: AppOptions) {
     meFor: (email) => {
       if (!email || email === opts.access?.ownerEmail) return localOwner;
       const p = store.getPerson(email);
-      return { email, role: p?.role ?? "viewer", local: false, dailyBudgetUsd: p?.dailyBudgetUsd };
+      if (p) return { email, role: p.role, local: false, dailyBudgetUsd: p.dailyBudgetUsd };
+      const scope = store.workspaceInvites(email);
+      return { email, role: Object.values(scope).some((x) => x.role === "operator") ? "operator" : "viewer", local: false, scope };
     },
   });
   inboxPlans = () => mainAgent.inboxItems();
@@ -768,6 +787,8 @@ export function createApp(opts: AppOptions) {
 
   // People (hosted access) -------------------------------------------------
   route("GET", "/api/me", (_q, _r, _p, _b, me) => ({ ...me, hosted: !!opts.access, spentTodayUsd: me.local ? undefined : store.spentToday(me.email) }));
+  /** Everyone invited to one workspace only, across workspaces (the People page). */
+  route("GET", "/api/workspace-invites", () => store.listTeamsRaw().flatMap((t) => t.access.map((a) => ({ ...a, teamId: t.id, teamName: t.name, spentTodayUsd: store.spentToday(a.email) }))), "owner");
   route(
     "GET",
     "/api/people",
@@ -879,8 +900,14 @@ export function createApp(opts: AppOptions) {
       if (email === access.ownerEmail) me = { email, role: "owner", local: false };
       else {
         const person = store.getPerson(email);
-        if (!person) return send(res, 403, { error: "You're signed in, but not invited yet — ask the owner to invite you", email });
-        me = { email, role: person.role, local: false, dailyBudgetUsd: person.dailyBudgetUsd };
+        if (person) me = { email, role: person.role, local: false, dailyBudgetUsd: person.dailyBudgetUsd };
+        else {
+          // Invited to some workspaces only.
+          const scope = store.workspaceInvites(email);
+          const roles = Object.values(scope).map((x) => x.role);
+          if (!roles.length) return send(res, 403, { error: "You're signed in, but not invited yet — ask the owner to invite you", email });
+          me = { email, role: roles.includes("operator") ? "operator" : "viewer", local: false, scope };
+        }
       }
     } catch (err) {
       return send(res, err instanceof AuthError ? err.status : 401, { error: (err as Error).message });
@@ -906,8 +933,18 @@ export function createApp(opts: AppOptions) {
         if (!can(me.role, r.need)) fail(403, r.need === "owner" ? "Only the owner can do this" : "Your role can't do this");
         const params = Object.fromEntries(r.keys.map((k, i) => [k, decodeURIComponent(m[i + 1]!)]));
         const body = req.method === "POST" || req.method === "PUT" ? await readJson(req, maxBody) : undefined;
-        const out = await r.handler(req, res, params, body, me);
+        if (me.scope) {
+          // Invited to some workspaces only: check the role in the workspace this request is about.
+          const teamId = workspaceOf(store, req.method!, url, params, body);
+          if (teamId) {
+            const role = me.scope[teamId]?.role;
+            if (!role) fail(403, "You're not invited to this workspace");
+            if (!can(role!, r.need)) fail(403, "Your role in this workspace can't do this");
+          } else if (req.method !== "GET" || url.pathname === "/api/usage") fail(403, "Your invite covers its workspaces only");
+        }
+        let out = await r.handler(req, res, params, body, me);
         if (out === STREAMING) return;
+        if (me.scope && Array.isArray(out)) out = out.filter((x) => inScope(x, me.scope!, url.pathname));
         return send(res, 200, out);
       }
       send(res, 404, { error: "Not found" });
@@ -957,4 +994,32 @@ async function readJson(req: IncomingMessage, max = 5_000_000): Promise<unknown>
   } catch {
     throw new HttpError(400, "Invalid JSON body");
   }
+}
+
+/** The workspace a request is about, when it is about one (used for per-workspace invites). */
+export function workspaceOf(store: StoreT, method: string, url: URL, params: Record<string, string>, body: unknown): string | undefined {
+  const p = url.pathname;
+  const b = (body ?? {}) as { teamId?: string; workflowId?: string; id?: string };
+  let m: RegExpExecArray | null;
+  if ((m = /^\/api\/(?:teams|workspaces)\/([^/]+)/.exec(p))) return decodeURIComponent(m[1]!);
+  if (p === "/api/workflows/import") return url.searchParams.get("teamId") ?? undefined;
+  if (p === "/api/workflows" && method === "POST") return b.teamId;
+  if ((m = /^\/api\/workflows\/([^/]+)/.exec(p))) return store.getWorkflow(decodeURIComponent(m[1]!))?.teamId ?? "?";
+  if (p === "/api/runs" && method === "POST") return store.getWorkflow(String(b.workflowId ?? ""))?.teamId ?? "?";
+  if ((m = /^\/api\/runs\/([^/]+)/.exec(p))) return store.getRunRow(decodeURIComponent(m[1]!))?.teamId ?? "?";
+  if ((m = /^\/api\/plans\/([^/]+)/.exec(p))) return store.getPlan(decodeURIComponent(m[1]!))?.teamId ?? "?";
+  if ((m = /^\/api\/reporters\/([^/]+)/.exec(p))) return store.getReporter(decodeURIComponent(m[1]!))?.teamId ?? "?";
+  if (p === "/api/usage") return url.searchParams.get("teamId") ?? undefined;
+  if (p === "/api/inbox/dismiss") return store.getRunRow(String(b.id ?? "").replace(/^failed:/, ""))?.teamId ?? "?";
+  void params;
+  return undefined;
+}
+
+/** Lists shown to someone invited to some workspaces only. */
+function inScope(x: unknown, scope: Record<string, unknown>, path: string): boolean {
+  if (!x || typeof x !== "object") return true;
+  const o = x as { id?: string; teamId?: string };
+  if (path === "/api/teams") return !!o.id && o.id in scope;
+  if (typeof o.teamId === "string") return o.teamId in scope;
+  return true;
 }

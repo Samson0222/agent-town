@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Box, Copy, Crown, Grid2x2, FolderInput, KeyRound, Plus, Radio, Save, Trash2, UserMinus, UserPlus } from "lucide-react";
+import { Box, Copy, Crown, Grid2x2, ShieldCheck, UsersRound, X, FolderInput, KeyRound, Plus, Radio, Save, Trash2, UserMinus, UserPlus } from "lucide-react";
 import type { AgentTemplate, Team } from "@agent-town/core";
 import { api, errorText, formatUsd, type RuntimeInfo } from "@/lib/api";
 import { AgentStatusChip, Avatar } from "@/components/ui";
@@ -248,6 +248,10 @@ export function TeamSettings({ id, onSaved }: { id: string; onSaved?: (t: Team) 
         </label>
       </section>
 
+      <Squads team={team} members={members} update={update} />
+
+      <WorkspacePeople team={team} update={update} />
+
       <OutsideAgents teamId={team.id} />
     </div>
   );
@@ -353,5 +357,147 @@ function TokenOnce({ name, token, onClose }: { name: string; token: string; onCl
         Done
       </button>
     </div>
+  );
+}
+
+/** Squads: named groups inside the team, each with a lead. The main agent can give a step to a whole squad. */
+function Squads({ team, members, update }: { team: Team; members: AgentTemplate[]; update: (p: Partial<Team>) => void }) {
+  const set = (squads: Team["squads"]) => update({ squads });
+  const add = () => {
+    const n = team.squads.length + 1;
+    let id = `squad-${n}`;
+    for (let i = n + 1; team.squads.some((q) => q.id === id); i++) id = `squad-${i}`;
+    set([...team.squads, { id, name: `Squad ${n}`, leadId: "", memberIds: [] }]);
+  };
+  return (
+    <section className="panel p-5">
+      <div className="mb-3 flex items-center gap-2">
+        <h2 className="flex items-center gap-2 font-semibold">
+          <UsersRound size={16} /> Squads
+        </h2>
+        <button data-needs="edit" className="btn btn-sm ml-auto" onClick={add} disabled={members.length === 0}>
+          <Plus size={14} /> New squad
+        </button>
+      </div>
+      {team.squads.length === 0 && <p className="muted text-sm">None yet.</p>}
+      <div className="space-y-3">
+        {team.squads.map((q, i) => {
+          const patch = (p: Partial<(typeof team.squads)[number]>) => set(team.squads.map((x, k) => (k === i ? { ...x, ...p } : x)));
+          return (
+            <div key={q.id} className="rounded-xl border p-3" style={{ borderColor: "var(--line)" }}>
+              <div className="mb-2 flex flex-wrap items-center gap-2">
+                <input className="input !h-9 max-w-56" value={q.name} onChange={(e) => patch({ name: e.target.value })} aria-label="Squad name" />
+                <label className="muted flex items-center gap-2 text-sm">
+                  Lead
+                  <select className="input !h-9" value={q.leadId} onChange={(e) => patch({ leadId: e.target.value })}>
+                    <option value="">—</option>
+                    {members
+                      .filter((a) => q.memberIds.includes(a.id))
+                      .map((a) => (
+                        <option key={a.id} value={a.id}>
+                          {a.name}
+                        </option>
+                      ))}
+                  </select>
+                </label>
+                <button className="btn btn-ghost btn-icon ml-auto" aria-label={`Remove ${q.name}`} onClick={() => set(team.squads.filter((_, k) => k !== i))}>
+                  <Trash2 size={15} />
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {members.map((a) => {
+                  const on = q.memberIds.includes(a.id);
+                  return (
+                    <button
+                      key={a.id}
+                      aria-pressed={on}
+                      className="flex items-center gap-1.5 rounded-full border py-0.5 pl-0.5 pr-2.5 text-xs"
+                      style={{ borderColor: on ? "var(--accent)" : "var(--line)", background: on ? "var(--accent-soft)" : "var(--panel)" }}
+                      onClick={() => {
+                        const memberIds = on ? q.memberIds.filter((m) => m !== a.id) : [...q.memberIds, a.id];
+                        patch({ memberIds, leadId: memberIds.includes(q.leadId) ? q.leadId : (memberIds[0] ?? "") });
+                      }}
+                    >
+                      <Avatar name={a.name} color={a.appearance.color} sprite={a.appearance.sprite} size={22} /> {a.name}
+                      {q.leadId === a.id && <Crown size={11} />}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+/** Who else can open this workspace (hosted access). Owner only. */
+function WorkspacePeople({ team, update }: { team: Team; update: (p: Partial<Team>) => void }) {
+  const { me } = useMe();
+  const [email, setEmail] = useState("");
+  const [role, setRole] = useState<"operator" | "viewer">("viewer");
+  const [budget, setBudget] = useState(0);
+  if (!me || me.role !== "owner") return null;
+  const valid = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim()) && !team.access.some((a) => a.email === email.trim().toLowerCase());
+  const add = () => {
+    update({ access: [...team.access, { email: email.trim().toLowerCase(), role, ...(role === "operator" ? { dailyBudgetUsd: budget } : {}) }] });
+    setEmail("");
+  };
+  return (
+    <section className="panel p-5">
+      <h2 className="mb-3 flex items-center gap-2 font-semibold">
+        <ShieldCheck size={16} /> People
+      </h2>
+      <ul className="mb-3 space-y-1.5">
+        {team.access.map((a, i) => (
+          <li key={a.email} className="flex flex-wrap items-center gap-2 rounded-xl p-2 text-sm" style={{ background: "var(--panel-2)" }}>
+            <span className="min-w-0 flex-1 truncate">{a.email}</span>
+            <select
+              className="input !h-8 !w-auto"
+              value={a.role}
+              aria-label={`Role for ${a.email}`}
+              onChange={(e) => update({ access: team.access.map((x, k) => (k === i ? { ...x, role: e.target.value as "operator" | "viewer" } : x)) })}
+            >
+              <option value="viewer">Viewer</option>
+              <option value="operator">Operator</option>
+            </select>
+            {a.role === "operator" && (
+              <label className="muted flex items-center gap-1 text-xs">
+                $/day
+                <input
+                  className="input !h-8 w-20"
+                  type="number"
+                  min={0}
+                  step="0.5"
+                  value={a.dailyBudgetUsd ?? 0}
+                  onChange={(e) => update({ access: team.access.map((x, k) => (k === i ? { ...x, dailyBudgetUsd: Number(e.target.value) } : x)) })}
+                />
+              </label>
+            )}
+            <button className="btn btn-ghost btn-icon" aria-label={`Remove ${a.email}`} onClick={() => update({ access: team.access.filter((_, k) => k !== i) })}>
+              <X size={15} />
+            </button>
+          </li>
+        ))}
+      </ul>
+      <div className="flex flex-wrap items-center gap-2">
+        <input className="input max-w-64" type="email" placeholder="name@example.com" value={email} onChange={(e) => setEmail(e.target.value)} aria-label="Email" />
+        <select className="input !w-auto" value={role} onChange={(e) => setRole(e.target.value as "operator" | "viewer")} aria-label="Role">
+          <option value="viewer">Viewer</option>
+          <option value="operator">Operator</option>
+        </select>
+        {role === "operator" && (
+          <label className="muted flex items-center gap-1 text-xs">
+            $/day
+            <input className="input w-20" type="number" min={0} step="0.5" value={budget} onChange={(e) => setBudget(Number(e.target.value))} />
+          </label>
+        )}
+        <button className="btn" disabled={!valid} onClick={add}>
+          <UserPlus size={15} /> Invite
+        </button>
+      </div>
+      {me.hosted && <p className="muted mt-2 text-xs">Also add their email to the Cloudflare Access policy.</p>}
+    </section>
   );
 }

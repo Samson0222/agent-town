@@ -11,6 +11,8 @@ export interface Me {
   hosted: boolean;
   dailyBudgetUsd?: number;
   spentTodayUsd?: number;
+  /** Invited to some workspaces only: the role in each. */
+  scope?: Record<string, { role: Role; dailyBudgetUsd?: number }>;
 }
 
 type MeState = { me: Me | null; error: string | null };

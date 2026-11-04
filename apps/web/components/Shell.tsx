@@ -102,7 +102,7 @@ function Frame({ children }: { children: ReactNode }) {
   );
   return (
     // data-role hides the actions this role can't use (see globals.css); the server enforces the same rules.
-    <div className="flex min-h-screen" data-role={me?.role}>
+    <div className="flex min-h-screen" data-role={(current && me?.scope?.[current.id]?.role) || me?.role}>
       <aside
         className={`sticky top-0 hidden h-screen shrink-0 flex-col border-r px-3 py-5 transition-[width] duration-200 md:flex ${collapsed ? "w-[68px]" : "w-60"}`}
         style={{ borderColor: "var(--line)", background: "var(--panel)" }}
