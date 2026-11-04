@@ -96,6 +96,8 @@ Update this file whenever the current phase, active feature, or implementation s
 
 ## Session Notes
 
+- 2026-11-04: Fixes from user testing: GitHub skill install now accepts a repo link (auto-finds the skill or offers a choice); every agent gets an office character, and the agent page has a "Change look" shortcut.
+
 - 2026-11-03: Session 1 built M0 contracts and M1 in a cloud container (no OpenCode available). The branch is `claude/wonderful-goodall-t2hsgx`.
 - Data lives in `./data` (git-ignored); delete it to reset to the starter templates. Templates are only seeded when there are no teams.
 - `AGENT_TOWN_MOCK_STEP_MS` sets mock speed (default 350 ms per event); `AGENT_TOWN_PORT` sets the server port (default 4317); `NEXT_PUBLIC_AGENT_TOWN_API` sets the API URL the web app uses.

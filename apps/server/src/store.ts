@@ -14,6 +14,9 @@ import {
   type Workflow,
 } from "@agent-town/core";
 
+/** Characters in the pixel-office sprite set (apps/web CHARACTER_COUNT). */
+const OFFICE_CHARACTERS = 6;
+
 /**
  * SQLite store. Events are the source of truth for runs; tasks, messages and
  * cost are projections of the event log (see reduceRunState), so the log can
@@ -90,11 +93,39 @@ export class Store {
   }
 
   saveAgent(agent: AgentTemplate): AgentTemplate {
-    const a = AgentTemplate.parse(agent);
+    const a = this.withCharacter(AgentTemplate.parse(agent));
     this.db
       .prepare("INSERT INTO agents (id, json, updated_at) VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET json = excluded.json, updated_at = excluded.updated_at")
       .run(a.id, JSON.stringify(a), new Date().toISOString());
     return a;
+  }
+
+  /**
+   * Every agent gets an office character ("char-N"). Agents from older databases,
+   * imports or the API without one get the least-used character, so the office
+   * stays varied. The user can change it in the agent's Settings → Look.
+   */
+  private withCharacter(a: AgentTemplate): AgentTemplate {
+    if (/^char-\d+$/.test(a.appearance.sprite ?? "")) return a;
+    const used = new Array<number>(OFFICE_CHARACTERS).fill(0);
+    for (const o of this.listAgents()) {
+      const m = /^char-(\d+)$/.exec(o.appearance.sprite ?? "");
+      if (m && o.id !== a.id) used[Number(m[1]) % OFFICE_CHARACTERS]!++;
+    }
+    const pick = used.indexOf(Math.min(...used));
+    return { ...a, appearance: { ...a.appearance, sprite: `char-${pick}` } };
+  }
+
+  /** Startup backfill: give stored agents without a character one (see withCharacter). */
+  assignMissingCharacters(): number {
+    let n = 0;
+    for (const a of this.listAgents()) {
+      if (!/^char-\d+$/.test(a.appearance.sprite ?? "")) {
+        this.saveAgent(a);
+        n++;
+      }
+    }
+    return n;
   }
 
   deleteAgent(id: string): boolean {

@@ -94,7 +94,10 @@ export default function AgentDetailPage() {
         <ArrowLeft size={14} /> Agents
       </Link>
       <header className="flex flex-wrap items-start gap-4">
-        <Avatar name={agent.name} color={agent.appearance.color} sprite={agent.appearance.sprite} size={72} />
+        <button type="button" className="group flex flex-col items-center gap-1" onClick={() => setTab("settings")} title="Change look">
+          <Avatar name={agent.name} color={agent.appearance.color} sprite={agent.appearance.sprite} size={72} />
+          <span className="muted text-xs group-hover:underline">Change look</span>
+        </button>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="text-2xl font-bold">{agent.name}</h1>

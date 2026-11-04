@@ -31,7 +31,7 @@ import {
 import { Store } from "./store";
 import { DiskVault } from "./vault";
 import { OpenCodeAdapter, type OpenCodeAdapterOptions } from "@agent-town/adapter-opencode";
-import { applyAssignment, fetchGithubSkill, isAssigned, skillFromFiles, slugify } from "./skills";
+import { applyAssignment, fetchGithubSkill, isAssigned, isChoices, skillFromFiles, slugify } from "./skills";
 
 export interface AppOptions {
   dbFile: string;
@@ -126,6 +126,7 @@ export function createApp(opts: AppOptions) {
 
   // Databases from before the shared agent library: move embedded agents into it.
   store.migrateLegacyTeams();
+  store.assignMissingCharacters();
 
   if (opts.seedTemplates !== false && store.listTeams().length === 0) {
     for (const t of starterTemplates()) {
@@ -291,6 +292,7 @@ export function createApp(opts: AppOptions) {
     if (!skill.origin) fail(400, "This skill was not installed from GitHub");
     const o = skill.origin!;
     const latest = await fetchGithubSkill(`https://github.com/${o.repo}/tree/${o.ref}${o.path ? `/${o.path}` : ""}`);
+    if (isChoices(latest)) fail(409, "The skill folder moved upstream — reinstall it from its new location");
     return { ...latest, changed: latest.skill.origin?.commit !== o.commit, current: o.commit };
   });
   route("PUT", "/api/skills/:id", (_q, _r, p, body) => {

@@ -145,6 +145,8 @@ describe("shared agent library", () => {
 
   it("creates an agent, adds it to a team, edits it everywhere at once", async () => {
     const a = (await api("/api/agents", { method: "POST", json: { name: "Nova", role: "Analyst", teamId: "sprint-team" } })).body;
+    // no look chosen → gets an office character, never a bare letter
+    expect(a.appearance.sprite).toMatch(/^char-\d$/);
     expect((await api("/api/teams/sprint-team")).body.memberIds).toContain(a.id);
     await api(`/api/agents/${a.id}`, { method: "PUT", json: { ...a, systemPrompt: "Be brief." } });
     const team = (await api("/api/teams/sprint-team")).body;

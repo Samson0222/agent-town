@@ -74,6 +74,15 @@ export interface GithubPreview {
   files: Array<{ path: string; bytes: number; script: boolean }>;
 }
 
+/** Returned instead of a preview when the link holds several skills: the user picks one. */
+export interface GithubChoices {
+  choices: Array<{ path: string; url: string }>;
+  repo: string;
+  ref: string;
+}
+
+export const isChoices = (r: GithubPreview | GithubChoices): r is GithubChoices => "choices" in r;
+
 type Fetch = typeof fetch;
 
 /**
@@ -81,8 +90,10 @@ type Fetch = typeof fetch;
  * Uses the public REST API + raw.githubusercontent.com; GITHUB_TOKEN is used if set
  * (rate limits) and never logged or stored.
  */
-export async function fetchGithubSkill(input: string, f: Fetch = fetch, token = process.env.GITHUB_TOKEN): Promise<GithubPreview> {
+export async function fetchGithubSkill(input: string, f: Fetch = fetch, token = process.env.GITHUB_TOKEN): Promise<GithubPreview | GithubChoices> {
   const g = parseGithubUrl(input);
+  let autoPicked: string | null = null;
+  let hiddenCopies = 0;
   const headers: Record<string, string> = { Accept: "application/vnd.github+json", "User-Agent": "agent-town" };
   if (token) headers.Authorization = `Bearer ${token}`;
   const getJson = async (url: string) => {
@@ -96,16 +107,30 @@ export async function fetchGithubSkill(input: string, f: Fetch = fetch, token = 
   const ref = g.ref ?? (await getJson(api)).default_branch;
   const commit: string = (await getJson(`${api}/commits/${encodeURIComponent(ref)}`)).sha;
   const tree = (await getJson(`${api}/git/trees/${commit}?recursive=1`)) as { tree: Array<{ path: string; type: string; size?: number }>; truncated?: boolean };
-  const prefix = g.path ? `${g.path}/` : "";
-  const blobs = tree.tree.filter((e) => e.type === "blob" && (prefix ? e.path.startsWith(prefix) : true));
-  if (!blobs.some((b) => b.path === `${prefix}SKILL.md`)) {
-    const candidates = tree.tree.filter((e) => e.type === "blob" && /(^|\/)SKILL\.md$/.test(e.path) && e.path.startsWith(prefix)).map((e) => e.path.replace(/\/?SKILL\.md$/, ""));
-    throw new Error(
-      candidates.length
-        ? `No SKILL.md directly in that folder. Skills found inside: ${candidates.slice(0, 10).join(", ")} — paste the URL of one of them.`
-        : "No SKILL.md found at that location",
-    );
+  const all = tree.tree.filter((e) => e.type === "blob");
+  if (!all.some((b) => b.path === (g.path ? `${g.path}/SKILL.md` : "SKILL.md"))) {
+    // The link points at a repo or parent folder: find the skill folders inside it.
+    const under = g.path ? `${g.path}/` : "";
+    const dirs = all.filter((e) => /(^|\/)SKILL\.md$/.test(e.path) && e.path.startsWith(under)).map((e) => e.path.replace(/\/?SKILL\.md$/, ""));
+    // Only the outermost skills (a skill's nested sub-skills belong to it).
+    const outer = dirs.filter((d) => !dirs.some((o) => o !== d && d.startsWith(`${o}/`))).sort();
+    if (!outer.length) throw new Error(`No SKILL.md found in ${g.owner}/${g.repo}${g.path ? `/${g.path}` : ""}`);
+    // Copies in hidden tool folders (.cursor/, .claude/, …) are usually mirrors of the real one.
+    const visible = outer.filter((d) => !d.split("/").some((seg) => seg.startsWith(".")));
+    const picks = visible.length ? visible : outer;
+    if (picks.length > 1) {
+      return {
+        choices: picks.slice(0, 50).map((path) => ({ path, url: `https://github.com/${g.owner}/${g.repo}/tree/${ref}/${path}` })),
+        repo: `${g.owner}/${g.repo}`,
+        ref,
+      };
+    }
+    autoPicked = picks[0]!;
+    hiddenCopies = outer.length - picks.length;
+    g.path = autoPicked;
   }
+  const prefix = g.path ? `${g.path}/` : "";
+  const blobs = all.filter((b) => (prefix ? b.path.startsWith(prefix) : true));
   // Only the skill folder itself: skip files that belong to nested skills.
   const nested = new Set(blobs.filter((b) => /\/SKILL\.md$/.test(b.path) && b.path !== `${prefix}SKILL.md`).map((b) => b.path.replace(/SKILL\.md$/, "")));
   const mine = blobs.filter((b) => ![...nested].some((n) => b.path.startsWith(n)));
@@ -140,6 +165,7 @@ export async function fetchGithubSkill(input: string, f: Fetch = fetch, token = 
   const built = skillFromFiles(files, "github", g.path.split("/").pop() || g.repo);
   const url = `https://github.com/${g.owner}/${g.repo}/tree/${commit}${g.path ? `/${g.path}` : ""}`;
   const skill = Skill.parse({ ...built.skill, origin: { repo: `${g.owner}/${g.repo}`, path: g.path, ref, commit, url } });
+  if (autoPicked) warnings.unshift(`Found the skill in ${autoPicked}/${hiddenCopies ? ` (ignored ${hiddenCopies} copy in a hidden folder such as .cursor/)` : ""}`);
   return { skill, warnings: [...warnings, ...built.warnings.filter((w) => !warnings.includes(w))], files: listing };
 }
 

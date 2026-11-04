@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fetchGithubSkill, parseGithubUrl, skillFromFiles } from "../src/skills";
+import { fetchGithubSkill, isChoices, parseGithubUrl, skillFromFiles, type GithubPreview } from "../src/skills";
 
 /** A tiny fake of the GitHub REST API + raw host. No network. */
 function fakeGithub(files: Record<string, string>, opts: { commit?: string; branch?: string } = {}) {
@@ -43,7 +43,7 @@ describe("GitHub skill install", () => {
 
   it("previews a folder pinned to the exact commit, skips binaries and nested skills, flags scripts", async () => {
     const { f, calls } = fakeGithub(REPO);
-    const p = await fetchGithubSkill("https://github.com/acme/skills/tree/main/skills/review", f, undefined);
+    const p = (await fetchGithubSkill("https://github.com/acme/skills/tree/main/skills/review", f, undefined)) as GithubPreview;
     expect(p.skill.name).toBe("Code review");
     expect(p.skill.source).toBe("github");
     expect(p.skill.origin).toMatchObject({ repo: "acme/skills", path: "skills/review", ref: "main", commit: "abc123def456" });
@@ -55,14 +55,37 @@ describe("GitHub skill install", () => {
     expect(calls.filter((c) => c.includes("raw.githubusercontent.com")).every((c) => c.includes("/abc123def456/"))).toBe(true);
   });
 
-  it("explains where skills are when the URL points at a parent folder", async () => {
+  it("finds the single skill inside a parent folder (nested sub-skills belong to it)", async () => {
     const { f } = fakeGithub(REPO);
-    await expect(fetchGithubSkill("https://github.com/acme/skills/tree/main/skills", f, undefined)).rejects.toThrow(/skills\/review/);
+    const p = (await fetchGithubSkill("https://github.com/acme/skills/tree/main/skills", f, undefined)) as GithubPreview;
+    expect(p.skill.origin?.path).toBe("skills/review");
+    expect(p.warnings[0]).toMatch(/Found the skill in skills\/review/);
+  });
+
+  it("repo root with a copy in a hidden tool folder: picks the visible one", async () => {
+    const md = "---\nname: I have ADHD\n---\nKeep it short";
+    const { f } = fakeGithub({ "README.md": "x", ".cursor/skills/adhd/SKILL.md": md, "skills/adhd/SKILL.md": md });
+    const p = await fetchGithubSkill("https://github.com/acme/skills", f, undefined);
+    expect(isChoices(p)).toBe(false);
+    expect((p as GithubPreview).skill.origin?.path).toBe("skills/adhd");
+    expect((p as GithubPreview).warnings[0]).toMatch(/hidden folder/);
+  });
+
+  it("lets the user choose when a repo holds several skills", async () => {
+    const { f } = fakeGithub({ "skills/a/SKILL.md": "# A", "skills/b/SKILL.md": "# B", ".claude/skills/a/SKILL.md": "# A" });
+    const r = await fetchGithubSkill("https://github.com/acme/skills", f, undefined);
+    expect(isChoices(r) && r.choices.map((c) => c.path)).toEqual(["skills/a", "skills/b"]);
+    expect(isChoices(r) && r.choices[0]!.url).toBe("https://github.com/acme/skills/tree/main/skills/a");
+  });
+
+  it("says clearly when there is no skill at all", async () => {
+    const { f } = fakeGithub({ "README.md": "x" });
+    await expect(fetchGithubSkill("https://github.com/acme/skills", f, undefined)).rejects.toThrow(/No SKILL.md found/);
   });
 
   it("uses the default branch when no ref is given", async () => {
     const { f, calls } = fakeGithub({ "SKILL.md": "# Root skill" }, { branch: "trunk" });
-    const p = await fetchGithubSkill("https://github.com/acme/skills", f, undefined);
+    const p = (await fetchGithubSkill("https://github.com/acme/skills", f, undefined)) as GithubPreview;
     expect(p.skill.origin?.ref).toBe("trunk");
     expect(calls.some((c) => c.endsWith("/commits/trunk"))).toBe(true);
   });

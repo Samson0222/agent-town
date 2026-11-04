@@ -14,6 +14,11 @@ interface GithubPreview {
   warnings: string[];
   files: Array<{ path: string; bytes: number; script: boolean }>;
 }
+interface GithubChoices {
+  choices: Array<{ path: string; url: string }>;
+  repo: string;
+  ref: string;
+}
 
 /** Skills library (pattern from Multica's skills page — design only). */
 export default function SkillsPage() {
@@ -279,15 +284,19 @@ function FolderSkill({ agents, onDone }: { agents: AgentTemplate[]; onDone: (id?
 function GithubSkill({ agents, onDone }: { agents: AgentTemplate[]; onDone: (id?: string) => void }) {
   const [url, setUrl] = useState("");
   const [preview, setPreview] = useState<GithubPreview | null>(null);
+  const [choices, setChoices] = useState<GithubChoices | null>(null);
   const [scope, setScope] = useState(defaultScope);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const fetchPreview = async () => {
+  const fetchPreview = async (target = url) => {
     setBusy(true);
     setErr(null);
     setPreview(null);
+    setChoices(null);
     try {
-      setPreview(await api<GithubPreview>("/api/skills/github/preview", { json: { url } }));
+      const r = await api<GithubPreview | GithubChoices>("/api/skills/github/preview", { json: { url: target } });
+      if ("choices" in r) setChoices(r);
+      else setPreview(r);
     } catch (e) {
       setErr(errorText(e));
     } finally {
@@ -306,11 +315,33 @@ function GithubSkill({ agents, onDone }: { agents: AgentTemplate[]; onDone: (id?
     <div className="space-y-4">
       <div className="flex gap-2">
         <input className="input" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://github.com/owner/repo/tree/main/skills/my-skill" />
-        <button className="btn" disabled={!url.trim() || busy} onClick={fetchPreview}>
+        <button className="btn" disabled={!url.trim() || busy} onClick={() => fetchPreview()}>
           {busy ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />} Preview
         </button>
       </div>
       <p className="hint">Nothing is saved until you click Install. The skill is pinned to the exact commit, and bundled scripts are kept as text — Agent Town never runs them.</p>
+      {choices && (
+        <div className="space-y-2 rounded-xl border p-4" style={{ borderColor: "var(--line)" }}>
+          <div className="text-sm font-semibold">
+            {choices.repo} has {choices.choices.length} skills. Pick one to preview:
+          </div>
+          <ul className="space-y-1">
+            {choices.choices.map((c) => (
+              <li key={c.path}>
+                <button
+                  className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left font-mono text-sm hover:bg-[var(--panel-2)]"
+                  onClick={() => {
+                    setUrl(c.url);
+                    void fetchPreview(c.url);
+                  }}
+                >
+                  <BookOpen size={14} /> {c.path} <ChevronRight size={14} className="ml-auto" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       {preview && (
         <div className="space-y-3 rounded-xl border p-4" style={{ borderColor: "var(--line)" }}>
           <div>

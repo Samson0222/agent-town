@@ -2,6 +2,17 @@
 
 Newest first. Record decisions and open points from each session.
 
+## 2026-11-04 — Feedback: GitHub install from a repo link; agent avatars
+
+1. **GitHub install from a repo link failed** (user tried `https://github.com/ayghri/i-have-adhd`). The repo has no SKILL.md at its root; the skill is in `skills/i-have-adhd/`, with a copy in `.cursor/skills/i-have-adhd/`. Before, we only showed an error asking for a deeper URL.
+   - Now Agent Town looks inside the link. It lists only the outermost skill folders (sub-skills belong to their parent) and ignores copies in hidden tool folders (`.cursor/`, `.claude/`, …).
+   - With one skill left, it previews that skill straight away and adds a note saying where it was found. With several, it shows a list to pick from (`{choices}` response). With none, it says so clearly.
+   - "Update from source" returns 409 if the folder has moved upstream.
+   - Still not tried against real GitHub, because this container gets 403. The UI was checked with a stubbed response, and the logic with fake-GitHub tests.
+2. **Agents showed a letter instead of a character.** Agents moved over from old teams (or created by import/API) had no office character.
+   - The store now gives every agent without a `char-N` the least-used character when it is saved, and fills in missing ones at startup.
+   - To change an agent's look, open the agent → **Change look** (under the avatar) or **Settings → Look**.
+
 ## 2026-11-03 — Office switched to pixel-agents; Multica-style agents & skills; step-list workflows
 
 User asks: simpler agent and workflow creation like Multica; agents designed like pixel-agents; agents always visible in the office (never disappear).
