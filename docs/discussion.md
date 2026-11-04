@@ -2,6 +2,16 @@
 
 Newest first. Record decisions and open points from each session.
 
+## 2026-11-04 — Can we use vercel-labs/agent-desktop?
+
+Reviewed (reference-review.md §8). It's an Apache-2.0 computer-use tool (accessibility tree → refs → click/type), served over MCP. It would plug in as a **connector**, not a runtime, once the M2 MCP connector exists.
+
+**Open decision for the user:** how desktop actions get approved inside an agent's loop:
+- (a) auto-approve writes for chosen agents and apps, or
+- (b) a per-action approval that pauses the session (the same `respond()` hook as for OpenCode permissions).
+
+Snapshots need redacting in logs. Nothing built yet.
+
 ## 2026-11-04 — Feedback: GitHub install from a repo link; agent avatars
 
 1. **GitHub install from a repo link failed** (user tried `https://github.com/ayghri/i-have-adhd`). The repo has no SKILL.md at its root; the skill is in `skills/i-have-adhd/`, with a copy in `.cursor/skills/i-have-adhd/`. Before, we only showed an error asking for a deeper URL.

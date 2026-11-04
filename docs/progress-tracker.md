@@ -82,6 +82,8 @@ Update this file whenever the current phase, active feature, or implementation s
 - OpenConnector: where it runs locally, and whether the connector demo should read a GitHub issue or a Notion page.
 - Should pause also cancel and re-queue in-flight steps (needs `cancellation`)? Today in-flight steps finish.
 
+- agent-desktop (computer use) as an MCP connector after M2: approve desktop actions by (a) auto-approving writes for chosen agents and apps, or (b) a per-action approval pause? See reference-review.md §8.
+
 ## Architecture Decisions
 
 - Events are the source of truth; every view is `reduceRunState(events)` (also used for replay).

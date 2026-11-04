@@ -147,3 +147,27 @@ The OpenCode check (`npm run verify:opencode -- --serve`) can run in parallel, s
   3. **Create**, then a "what next" page
 - **Skills:** a reusable package (`SKILL.md` plus optional references, templates and scripts) kept in a **workspace skill library**. You create one manually or import a folder or URL, attach it to many agents, and enable or disable it per agent. Instructions are for one agent only; skills are reusable methods.
 - **Agent detail page:** tabs Overview (Now / Recent work), Work, Capabilities, Settings, plus a side card with runtime, model, skills and usage.
+
+## 8. agent-desktop (added 2026-11-04, requested by the user)
+
+[vercel-labs/agent-desktop](https://github.com/vercel-labs/agent-desktop) at `6660fba` (2026-11-03), **Apache-2.0**. Read: README, CONCEPTS.md, the `skills/` folder.
+
+**What it is:** computer use for AI agents through the OS accessibility tree, not screenshots. `snapshot` returns an app's UI as JSON with a ref per element. The agent then calls `click` / `type` / `set-value` on a ref and snapshots again to check. It has no model inside. It ships as a Rust CLI with native binaries for macOS, Windows (UI Automation) and Linux, a C library, and an MCP server (`agent-desktop mcp`, one `desktop_*` tool per command). It also includes a SKILL.md that teaches the observe → act → verify loop. Password fields are never shown.
+
+**Where it fits:** it is a **tool provider (Layer 3 connector)**, not a runtime and not a UI piece. No code needs to be copied; we would talk to it over MCP.
+
+**Plan (not built; it waits for the M2 MCP connector):**
+1. **Generic MCP connector** in M2. agent-desktop then becomes a configuration entry, with no code specific to it.
+2. **Tool categories:**
+   - observe commands (`snapshot`, `find`, `get`, `is`, `list-*`, `screenshot`, `wait`) = **read**, so they can go to runtime sessions
+   - acting commands (click, type, set-value, launch, clipboard-set, …) = **write**, at minimum
+   - anything that could send or buy is still **approval-gated**
+3. **The catch:** computer use is a loop, while approval-gated tools only run through Tool Call nodes. Two options:
+   - (a) give runtime sessions write access only for agents with "auto-approve writes" and an app allowlist
+   - (b) add a per-call approval that pauses the session. This is the same `respond()` hook already proposed for OpenCode permissions.
+   - Needs the user's decision.
+4. **Privacy:** snapshots can contain private desktop content, so they must be truncated or redacted in events and logs. The engine would need a `redact` option for each connector tool.
+5. **Skill:** its `skills/agent-desktop/SKILL.md` can be installed through our Skills library (GitHub install) and assigned only to desktop agents.
+6. **Office view:** `desktop_*` tool calls map to the existing typing animation; nothing new is needed.
+
+**Not now:** it controls the user's real computer, so it is gated behind the MCP connector, the approval design above and the user's OK.
