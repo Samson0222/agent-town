@@ -96,6 +96,9 @@ export class Office3D {
   private view = { mx: 0, my: 0, hw: 1, hh: 1 };
   private drag?: { x: number; y: number; px: number; py: number; moved: boolean };
   private unbind: Array<() => void> = [];
+  /** The opening view: zoomed in on the office. Until the user zooms or drags, a resize re-applies it. */
+  private home = { zoom: 1, x: 0, y: 0 };
+  private touched = false;
   private agents: Office3DAgent[] = [];
   private town?: Town | ModernTown;
   private phase: Phase = "day";
@@ -290,11 +293,12 @@ export class Office3D {
       const ny = -(((e.clientY - rect.top) / rect.height) * 2 - 1);
       const { hw, hh } = this.view;
       const z1 = this.zoom;
-      const z2 = Math.max(1, Math.min(4, z1 * Math.exp(-e.deltaY * 0.0015)));
+      const z2 = Math.max(1, Math.min(6, z1 * Math.exp(-e.deltaY * 0.0015)));
       // keep the point under the cursor where it is
       this.pan.x += nx * (hw / z1 - hw / z2);
       this.pan.y += ny * (hh / z1 - hh / z2);
       this.zoom = z2;
+      this.touched = true;
       this.applyView();
     }, { passive: false });
     on(c, "pointerdown", (e) => {
@@ -307,6 +311,7 @@ export class Office3D {
       const dy = e.clientY - d.y;
       if (!d.moved && Math.hypot(dx, dy) < 5) return;
       d.moved = true;
+      this.touched = true;
       const rect = c.getBoundingClientRect();
       this.pan.x = d.px - (dx / rect.width) * 2 * (this.view.hw / this.zoom);
       this.pan.y = d.py + (dy / rect.height) * 2 * (this.view.hh / this.zoom);
@@ -318,8 +323,9 @@ export class Office3D {
       if (this.drag?.moved) e.stopPropagation();
     }, { capture: true });
     on(c, "dblclick", () => {
-      this.zoom = 1;
-      this.pan = { x: 0, y: 0 };
+      this.touched = false;
+      this.zoom = this.home.zoom;
+      this.pan = { x: this.home.x, y: this.home.y };
       this.applyView();
     });
   }
@@ -358,6 +364,23 @@ export class Office3D {
     if (halfW / halfH > w / h) halfH = halfW / (w / h);
     else halfW = halfH * (w / h);
     this.view = { mx: (minX + maxX) / 2, my: (minY + maxY) / 2, hw: halfW, hh: halfH };
+    // Opening view: the office fills the screen; zooming out reveals the whole island.
+    this.home = { zoom: 1, x: 0, y: 0 };
+    if (island) {
+      let ax = Infinity, bx = -Infinity, ay = Infinity, by = -Infinity;
+      for (const x of [plan.minX - 1.2, plan.maxX + 1.2]) for (const z of [plan.minZ - 1.2, plan.maxZ + 1.2]) for (const y of [-0.5, WALL_H + 0.4]) {
+        const p = new THREE.Vector3(x, y, z).applyMatrix4(inv);
+        ax = Math.min(ax, p.x); bx = Math.max(bx, p.x); ay = Math.min(ay, p.y); by = Math.max(by, p.y);
+      }
+      let ow = (bx - ax) / 2, oh = (by - ay) / 2;
+      if (ow / oh > w / h) oh = ow / (w / h);
+      else ow = oh * (w / h);
+      this.home = { zoom: Math.max(1, Math.min(6, halfW / ow, halfH / oh)), x: (ax + bx) / 2 - this.view.mx, y: (ay + by) / 2 - this.view.my };
+    }
+    if (!this.touched) {
+      this.zoom = this.home.zoom;
+      this.pan = { x: this.home.x, y: this.home.y };
+    }
     this.applyView();
     this.camera.updateProjectionMatrix();
   }

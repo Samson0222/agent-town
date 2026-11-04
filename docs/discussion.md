@@ -2,6 +2,10 @@
 
 Newest first. Record decisions and open points from each session.
 
+## 2026-11-04 — The medieval 3D view opens zoomed in on the office
+
+The whole-island view made the office small. It now opens zoomed in so the office fills the screen; zooming out (mouse wheel) reveals the whole island, up to 6x in. A double click returns to the opening view. A window resize re-fits the opening view until the user has zoomed or dragged.
+
 ## 2026-11-04 — Two office styles, Modern and Medieval, in both 2D and 3D
 
 The user wants to pick and switch freely between two looks:
