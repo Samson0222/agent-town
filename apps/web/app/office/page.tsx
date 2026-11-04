@@ -74,7 +74,7 @@ export default function OfficePage() {
               </option>
             ))}
           </select>
-          <Link href="/" className="btn btn-primary">
+          <Link data-needs="run" href="/" className="btn btn-primary">
             <Play size={16} /> Give them work
           </Link>
         </div>

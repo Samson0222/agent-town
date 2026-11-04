@@ -191,7 +191,7 @@ export default function StartPage() {
                   ))}
                 </ul>
               )}
-              <button className="btn btn-primary btn-lg w-full" onClick={start} disabled={busy || errors.length > 0}>
+              <button data-needs="run" className="btn btn-primary btn-lg w-full" onClick={start} disabled={busy || errors.length > 0}>
                 {busy ? <Loader2 size={18} className="animate-spin" /> : <Play size={18} />} {busy ? "Starting…" : "Start run"}
               </button>
               {warnings.length > 0 && (

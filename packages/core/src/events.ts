@@ -40,6 +40,8 @@ interface EventBase {
   /** Connector that produced the event, e.g. "vault", "mcp:github". */
   connector?: string;
   cost?: CostInfo;
+  /** Person who caused this event (hosted access: their email). Empty for local use and for the engine's own events. */
+  actor?: string;
 }
 
 export interface AgentInfo {

@@ -23,7 +23,7 @@ export default function AgentsPage() {
         title="Agents"
         subtitle="Everyone who can work in your office. Create an agent once, then add it to any team."
         actions={
-          <Link href="/agents/new" className="btn btn-primary">
+          <Link data-needs="edit" href="/agents/new" className="btn btn-primary">
             <Plus size={16} /> New agent
           </Link>
         }

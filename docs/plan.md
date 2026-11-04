@@ -49,11 +49,11 @@ The office is only a view of `reduceRunState(events)`, so a 3D view can sit besi
 
 ## Hosted access — public, logged-in users only (design: [hosting.md](hosting.md))
 Your PC plus a Cloudflare Tunnel, Cloudflare Access login, and Agent Town roles (owner / operator / viewer).
-- ⬜ `npm run start:hosted` (production build, same-origin API, separate tunnel-only API port)
-- ⬜ Cloudflare Access JWT check on the tunnel port, a `users` table, `GET /api/me`
-- ⬜ Role checks on every route and in the UI; send / spend approvals for the owner only; daily budget per operator
-- ⬜ People page (invite, role, remove, budget); `actor` on events ("Approved by …")
-- ⬜ Security tests (forged / expired / wrong-audience tokens, uninvited email, role matrix) and a Windows setup guide
+- ✅ `npm run hosted` (production build, same-origin API, separate tunnel-only API port)
+- ✅ Cloudflare Access JWT check on the tunnel port, a `users` table, `GET /api/me`
+- ✅ Role checks on every route and in the UI; send / spend approvals for the owner only; daily budget per operator
+- ✅ People page (invite, role, remove, budget); `actor` on events ("Approved by …")
+- ✅ Security tests (forged / expired / wrong-audience tokens, uninvited email, role matrix) and a Windows setup guide
 - ⬜ **Going live** (switching the tunnel on) is the user's step
 
 ## External agents report in (from the same post)

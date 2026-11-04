@@ -128,7 +128,7 @@ function NewAgent() {
           </div>
           )}
           <div className="flex justify-end pt-2">
-            <button className="btn btn-primary" onClick={() => setStep(2)} disabled={!runtimes.length}>
+            <button data-needs="edit" className="btn btn-primary" onClick={() => setStep(2)} disabled={!runtimes.length}>
               Continue <ArrowRight size={16} />
             </button>
           </div>
@@ -154,7 +154,7 @@ function NewAgent() {
             <button className="btn" onClick={() => setStep(1)}>
               <ArrowLeft size={16} /> Back
             </button>
-            <button className="btn btn-primary" disabled={busy || !agent.name.trim()} onClick={create}>
+            <button data-needs="edit" className="btn btn-primary" disabled={busy || !agent.name.trim()} onClick={create}>
               {busy ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />} Create agent
             </button>
           </div>
@@ -179,7 +179,7 @@ function NewAgent() {
             ) : null}
           </p>
           <div className="mt-6 flex flex-wrap justify-center gap-2">
-            <Link className="btn btn-primary" href={`/agents/${encodeURIComponent(created.id)}`}>
+            <Link data-needs="edit" className="btn btn-primary" href={`/agents/${encodeURIComponent(created.id)}`}>
               Open profile
             </Link>
             {team ? (

@@ -32,6 +32,7 @@ import { Store } from "./store";
 import { DiskVault } from "./vault";
 import { OpenCodeAdapter, type OpenCodeAdapterOptions } from "@agent-town/adapter-opencode";
 import { applyAssignment, fetchGithubSkill, isAssigned, isChoices, skillFromFiles, slugify } from "./skills";
+import { AccessVerifier, AuthError, RateLimiter, ROLES, can, type Permission, type Role } from "./auth";
 
 export interface AppOptions {
   dbFile: string;
@@ -41,6 +42,22 @@ export interface AppOptions {
   seedTemplates?: boolean;
   /** Register the OpenCode runtime (only when the user configured it). */
   opencode?: OpenCodeAdapterOptions;
+  /** Hosted access (docs/hosting.md): enables handleTunnel. */
+  access?: {
+    verifier: Pick<AccessVerifier, "verify">;
+    /** The owner's email (full rights, can't be removed). */
+    ownerEmail: string;
+    /** Public origin, e.g. https://agents.devsam.my (mutating requests must come from it). */
+    publicOrigin: string;
+  };
+}
+
+/** Who is making a request. Local requests (the PC itself, port 4317) act as the owner. */
+export interface Me {
+  email: string;
+  role: Role;
+  local: boolean;
+  dailyBudgetUsd?: number;
 }
 
 class HttpError extends Error {
@@ -49,7 +66,7 @@ class HttpError extends Error {
   }
 }
 
-type Handler = (req: IncomingMessage, res: ServerResponse, params: Record<string, string>, body: unknown) => Promise<unknown> | unknown;
+type Handler = (req: IncomingMessage, res: ServerResponse, params: Record<string, string>, body: unknown, me: Me) => Promise<unknown> | unknown;
 
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "item";
 const newId = (base: string) => `${slug(base)}-${Math.random().toString(36).slice(2, 7)}`;
@@ -135,14 +152,21 @@ export function createApp(opts: AppOptions) {
     }
   }
 
-  const routes: Array<{ method: string; pattern: RegExp; keys: string[]; handler: Handler }> = [];
-  const route = (method: string, path: string, handler: Handler) => {
+  const routes: Array<{ method: string; pattern: RegExp; keys: string[]; handler: Handler; need: Permission }> = [];
+  /** Reading needs "view", changing needs "edit" unless a route says otherwise (see auth.ts). */
+  const route = (method: string, path: string, handler: Handler, need: Permission = method === "GET" ? "view" : "edit") => {
     const keys: string[] = [];
     const pattern = new RegExp(
       "^" + path.replace(/:(\w+)(\*)?/g, (_m, k: string, star?: string) => (keys.push(k), star ? "(.+)" : "([^/]+)")) + "$",
     );
-    routes.push({ method, pattern, keys, handler });
+    routes.push({ method, pattern, keys, handler, need });
   };
+  const localOwner: Me = { email: opts.access?.ownerEmail ?? "", role: "owner", local: true };
+  const actorOf = (me: Me) => (me.local ? undefined : me.email);
+
+  /** Does starting this workflow spend real credit (any agent on a runtime that spends)? */
+  const spendsCredit = (team: Team) =>
+    team.agents.some((a) => adapters.get(a.runtime ?? team.defaults.runtime)?.manifest.spendsCredit);
 
   const liveRun = (id: string): Run => {
     const run = engine.get(id);
@@ -421,20 +445,33 @@ export function createApp(opts: AppOptions) {
 
   // --- runs ------------------------------------------------------------------
   route("GET", "/api/runs", () => store.listRuns());
-  route("POST", "/api/runs", async (_q, _r, _p, body) => {
-    const b = (body ?? {}) as { workflowId?: string; inputs?: Record<string, string>; force?: boolean };
-    const wf: Workflow = mustWorkflow(b.workflowId ?? "");
-    const team = mustTeam(wf.teamId);
-    const inputs = { ...(b.inputs ?? {}) };
-    const runId = crypto.randomUUID();
-    const pf = await engine.preflight(wf, team, inputs);
-    if (!pf.ok && !b.force) fail(422, "Preflight failed", pf);
-    store.createRun(runId, wf, team, inputs);
-    await vault.ensureTeamVault(team.vault);
-    store.setRunVaultDir(runId, DiskVault.runFolder(team.vault, wf.name, runId));
-    await engine.start(wf, team, inputs, { runId, force: b.force });
-    return { runId, preflight: pf };
-  });
+  route(
+    "POST",
+    "/api/runs",
+    async (_q, _r, _p, body, me) => {
+      const b = (body ?? {}) as { workflowId?: string; inputs?: Record<string, string>; force?: boolean };
+      const wf: Workflow = mustWorkflow(b.workflowId ?? "");
+      const team = mustTeam(wf.teamId);
+      const inputs = { ...(b.inputs ?? {}) };
+      // Operators spend the owner's credit only within their daily budget.
+      let maxCostUsd: number | undefined;
+      if (me.role === "operator" && spendsCredit(team)) {
+        const left = (me.dailyBudgetUsd ?? 0) - store.spentToday(me.email);
+        if (left <= 0) fail(403, "Your daily budget for real runs is used up — ask the owner to raise it");
+        maxCostUsd = left;
+      }
+      const runId = crypto.randomUUID();
+      const pf = await engine.preflight(wf, team, inputs);
+      if (!pf.ok && !b.force) fail(422, "Preflight failed", pf);
+      store.createRun(runId, wf, team, inputs);
+      if (!me.local) store.setRunStartedBy(runId, me.email);
+      await vault.ensureTeamVault(team.vault);
+      store.setRunVaultDir(runId, DiskVault.runFolder(team.vault, wf.name, runId));
+      await engine.start(wf, team, inputs, { runId, force: b.force, actor: actorOf(me), maxCostUsd });
+      return { runId, preflight: pf };
+    },
+    "run",
+  );
   route("GET", "/api/runs/:id", (_q, _r, p) => {
     const run = store.getRun(p.id!) ?? fail(404, "Run not found");
     const events = store.events(p.id!);
@@ -462,27 +499,80 @@ export function createApp(opts: AppOptions) {
     });
     return STREAMING;
   });
-  route("POST", "/api/runs/:id/pause", (_q, _r, p) => (liveRun(p.id!).pause(), { ok: true }));
-  route("POST", "/api/runs/:id/resume", (_q, _r, p) => (liveRun(p.id!).resume(), { ok: true }));
-  route("POST", "/api/runs/:id/stop", async (_q, _r, p) => (await liveRun(p.id!).stop(), { ok: true }));
-  route("POST", "/api/runs/:id/approve", (_q, _r, p, body) => {
-    const b = (body ?? {}) as { approvalId?: string; approved?: boolean; note?: string };
-    if (!b.approvalId || typeof b.approved !== "boolean") fail(400, "approvalId and approved are required");
-    liveRun(p.id!).approve(b.approvalId!, b.approved!, b.note);
+  route("POST", "/api/runs/:id/pause", (_q, _r, p, _b, me) => (liveRun(p.id!).pause(undefined, actorOf(me)), { ok: true }), "run");
+  route("POST", "/api/runs/:id/resume", (_q, _r, p, _b, me) => (liveRun(p.id!).resume(actorOf(me)), { ok: true }), "run");
+  route("POST", "/api/runs/:id/stop", async (_q, _r, p, _b, me) => (await liveRun(p.id!).stop(me.local ? undefined : `Stopped by ${me.email}`, actorOf(me)), { ok: true }), "run");
+  route(
+    "POST",
+    "/api/runs/:id/approve",
+    (_q, _r, p, body, me) => {
+      const b = (body ?? {}) as { approvalId?: string; approved?: boolean; note?: string };
+      if (!b.approvalId || typeof b.approved !== "boolean") fail(400, "approvalId and approved are required");
+      // Sending and spending are the owner's call only.
+      const pending = reduceRunState(store.events(p.id!)).approvals[b.approvalId!];
+      if ((pending?.category === "send" || pending?.category === "spend") && me.role !== "owner") fail(403, "Only the owner can approve sending or spending");
+      liveRun(p.id!).approve(b.approvalId!, b.approved!, b.note, actorOf(me));
+      return { ok: true };
+    },
+    "run",
+  );
+  route(
+    "POST",
+    "/api/runs/:id/reassign",
+    async (_q, _r, p, body, me) => {
+      const b = (body ?? {}) as { nodeId?: string; agentId?: string };
+      if (!b.nodeId || !b.agentId) fail(400, "nodeId and agentId are required");
+      await liveRun(p.id!).reassign(b.nodeId!, b.agentId!, actorOf(me));
+      return { ok: true };
+    },
+    "run",
+  );
+  route(
+    "POST",
+    "/api/runs/:id/redirect",
+    (_q, _r, p, body, me) => {
+      const b = (body ?? {}) as { nodeId?: string; note?: string };
+      if (!b.nodeId || !b.note) fail(400, "nodeId and note are required");
+      liveRun(p.id!).redirect(b.nodeId!, b.note!, actorOf(me));
+      return { ok: true };
+    },
+    "run",
+  );
+
+  // People (hosted access) -------------------------------------------------
+  route("GET", "/api/me", (_q, _r, _p, _b, me) => ({ ...me, hosted: !!opts.access, spentTodayUsd: me.local ? undefined : store.spentToday(me.email) }));
+  route(
+    "GET",
+    "/api/people",
+    () => [
+      ...(opts.access ? [{ email: opts.access.ownerEmail, role: "owner" as const, owner: true, createdAt: "" }] : []),
+      ...store.listPeople().map((x) => ({ ...x, spentTodayUsd: store.spentToday(x.email) })),
+    ],
+    "owner",
+  );
+  const personBody = (body: unknown) => {
+    const b = (body ?? {}) as { email?: string; role?: string; dailyBudgetUsd?: number | null };
+    const email = (b.email ?? "").trim().toLowerCase();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) fail(400, "Enter a valid email");
+    if (!b.role || !ROLES.includes(b.role as Role) || b.role === "owner") fail(400, "Role must be operator or viewer");
+    if (opts.access && email === opts.access.ownerEmail) fail(400, "That's the owner");
+    const budget = b.dailyBudgetUsd == null ? undefined : Number(b.dailyBudgetUsd);
+    if (budget !== undefined && !(budget >= 0 && budget <= 1000)) fail(400, "Daily budget must be between 0 and 1000 USD");
+    return { email, role: b.role as "operator" | "viewer", dailyBudgetUsd: b.role === "operator" ? budget ?? 0 : undefined };
+  };
+  route("POST", "/api/people", (_q, _r, _p, body, me) => {
+    const p = personBody(body);
+    if (store.getPerson(p.email)) fail(409, "Already invited");
+    return store.savePerson({ ...p, invitedBy: me.email || "owner" });
+  }, "owner");
+  route("PUT", "/api/people/:email", (_q, _r, p, body) => {
+    if (!store.getPerson(p.email!)) fail(404, "Not invited");
+    return store.savePerson(personBody({ ...(body as object), email: p.email }));
+  }, "owner");
+  route("DELETE", "/api/people/:email", (_q, _r, p) => {
+    if (!store.deletePerson(p.email!)) fail(404, "Not invited");
     return { ok: true };
-  });
-  route("POST", "/api/runs/:id/reassign", async (_q, _r, p, body) => {
-    const b = (body ?? {}) as { nodeId?: string; agentId?: string };
-    if (!b.nodeId || !b.agentId) fail(400, "nodeId and agentId are required");
-    await liveRun(p.id!).reassign(b.nodeId!, b.agentId!);
-    return { ok: true };
-  });
-  route("POST", "/api/runs/:id/redirect", (_q, _r, p, body) => {
-    const b = (body ?? {}) as { nodeId?: string; note?: string };
-    if (!b.nodeId || !b.note) fail(400, "nodeId and note are required");
-    liveRun(p.id!).redirect(b.nodeId!, b.note!);
-    return { ok: true };
-  });
+  }, "owner");
   route("GET", "/api/runs/:id/files", async (_q, _r, p) => vault.listFiles(p.id!));
   route("GET", "/api/runs/:id/steps", (_q, _r, p) => store.stepRuns(p.id!));
   route("GET", "/api/runs/:id/files/:path*", async (_q, res, p) => {
@@ -495,6 +585,7 @@ export function createApp(opts: AppOptions) {
     return STREAMING;
   });
 
+  /** Local port (127.0.0.1:4317): only localhost pages may call it; the caller is the owner. */
   async function handle(req: IncomingMessage, res: ServerResponse) {
     const origin = req.headers.origin;
     if (origin && isLocalOrigin(origin)) {
@@ -505,16 +596,59 @@ export function createApp(opts: AppOptions) {
     }
     if (req.method === "OPTIONS") return void res.writeHead(204).end();
     if (origin && !isLocalOrigin(origin)) return send(res, 403, { error: "Only localhost origins are allowed" });
+    // Anything that came through Cloudflare must use the tunnel port, never this one.
+    if (req.headers["cf-access-jwt-assertion"] || req.headers["cf-connecting-ip"]) return send(res, 403, { error: "This port is for this computer only" });
+    return dispatch(req, res, localOwner, 5_000_000);
+  }
 
+  const perUser = new RateLimiter(600, 60_000);
+  const perUserWrites = new RateLimiter(120, 60_000);
+
+  /**
+   * Tunnel-only port (127.0.0.1:4318, reached through Cloudflare Tunnel + Access).
+   * Every request needs a valid Cloudflare Access login for an invited person,
+   * and the person's role decides what they can do.
+   */
+  async function handleTunnel(req: IncomingMessage, res: ServerResponse) {
+    res.setHeader("Cache-Control", "no-store");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    const access = opts.access;
+    if (!access) return send(res, 404, { error: "Hosted access is off" });
+    let me: Me;
+    try {
+      const raw = req.headers["cf-access-jwt-assertion"];
+      const email = await access.verifier.verify(Array.isArray(raw) ? raw[0] : raw);
+      if (email === access.ownerEmail) me = { email, role: "owner", local: false };
+      else {
+        const person = store.getPerson(email);
+        if (!person) return send(res, 403, { error: "You're signed in, but not invited yet — ask the owner to invite you", email });
+        me = { email, role: person.role, local: false, dailyBudgetUsd: person.dailyBudgetUsd };
+      }
+    } catch (err) {
+      return send(res, err instanceof AuthError ? err.status : 401, { error: (err as Error).message });
+    }
+    const mutating = req.method !== "GET" && req.method !== "HEAD";
+    if (!perUser.allow(me.email) || (mutating && !perUserWrites.allow(me.email))) return send(res, 429, { error: "Too many requests — slow down a little" });
+    if (mutating) {
+      // Same-origin only (the Access cookie would otherwise ride along on cross-site requests).
+      if (req.headers.origin !== access.publicOrigin) return send(res, 403, { error: "Requests must come from the Agent Town page" });
+      const type = String(req.headers["content-type"] ?? "");
+      if (req.headers["content-length"] !== "0" && type && !type.startsWith("application/json")) return send(res, 415, { error: "JSON only" });
+    }
+    return dispatch(req, res, me, 2_000_000);
+  }
+
+  async function dispatch(req: IncomingMessage, res: ServerResponse, me: Me, maxBody: number) {
     const url = new URL(req.url ?? "/", "http://localhost");
     try {
       for (const r of routes) {
         if (r.method !== req.method) continue;
         const m = url.pathname.match(r.pattern);
         if (!m) continue;
+        if (!can(me.role, r.need)) fail(403, r.need === "owner" ? "Only the owner can do this" : "Your role can't do this");
         const params = Object.fromEntries(r.keys.map((k, i) => [k, decodeURIComponent(m[i + 1]!)]));
-        const body = req.method === "POST" || req.method === "PUT" ? await readJson(req) : undefined;
-        const out = await r.handler(req, res, params, body);
+        const body = req.method === "POST" || req.method === "PUT" ? await readJson(req, maxBody) : undefined;
+        const out = await r.handler(req, res, params, body, me);
         if (out === STREAMING) return;
         return send(res, 200, out);
       }
@@ -527,7 +661,7 @@ export function createApp(opts: AppOptions) {
     }
   }
 
-  return { handle, store, engine, vault, adapters, connectors };
+  return { handle, handleTunnel, store, engine, vault, adapters, connectors };
 }
 
 const STREAMING = Symbol("streaming");
@@ -551,12 +685,12 @@ function send(res: ServerResponse, status: number, body: unknown) {
   res.end(JSON.stringify(body));
 }
 
-async function readJson(req: IncomingMessage): Promise<unknown> {
+async function readJson(req: IncomingMessage, max = 5_000_000): Promise<unknown> {
   const chunks: Buffer[] = [];
   let size = 0;
   for await (const c of req) {
     size += (c as Buffer).length;
-    if (size > 5_000_000) throw new HttpError(413, "Body too large");
+    if (size > max) throw new HttpError(413, "Body too large");
     chunks.push(c as Buffer);
   }
   if (!chunks.length) return undefined;

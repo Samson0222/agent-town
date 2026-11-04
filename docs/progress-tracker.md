@@ -8,7 +8,7 @@ Update this file whenever the current phase, active feature, or implementation s
 
 ## Current Goal
 
-- 2026-11-04: Order approved: (1) office upgrades ✅ → (2) hosted access on **devsam.my** → (3) 2D/3D switch → (4) external agents reporting in.
+- 2026-11-04: Order approved: (1) office upgrades ✅ → (2) hosted access on **devsam.my** ✅ built (switching it on is the user's step: docs/hosting-setup.md) → (3) 2D/3D switch → (4) external agents reporting in.
 
 - Waiting for the user's review. Next candidates: the first real OpenCode run (needs the user's go-ahead: it spends credit), the permission-reply contract addition, then M3 (Claude Code adapter).
 
@@ -75,6 +75,8 @@ Update this file whenever the current phase, active feature, or implementation s
 - **Then (M2):** OpenCode adapter against the pinned SDK → MCP + OpenConnector connectors → real demo run.
 
 ## Open Questions
+
+- **Hosted access:** follow docs/hosting-setup.md when you're ready to go online (Cloudflare, cloudflared, `npm run hosted`). Not tested against real Cloudflare yet.
 
 
 - **First real OpenCode run:** OK to try one small run on a cheap or free model (e.g. a `-free` model) with a low cost cap? Steps are in milestone-0-opencode.md.

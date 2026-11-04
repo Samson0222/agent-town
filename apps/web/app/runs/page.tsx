@@ -18,7 +18,7 @@ export default function RunsPage() {
         title="Runs"
         subtitle="Every run is saved with its full event log, so you can open it and replay it."
         actions={
-          <Link href="/" className="btn btn-primary">
+          <Link data-needs="run" href="/" className="btn btn-primary">
             <Play size={16} /> New run
           </Link>
         }

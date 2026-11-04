@@ -124,7 +124,7 @@ export default function WorkflowBuilder() {
           <button className="btn" onClick={() => download(`${wf.id}.workflow.json`, JSON.stringify(wf, null, 2))}>
             Export JSON
           </button>
-          <button className="btn btn-primary" onClick={() => save()} disabled={!dirty}>
+          <button data-needs="edit" className="btn btn-primary" onClick={() => save()} disabled={!dirty}>
             {dirty ? "Save" : "Saved"}
           </button>
           <Link className="btn" href="/">

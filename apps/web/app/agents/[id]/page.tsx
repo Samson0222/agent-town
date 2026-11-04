@@ -135,7 +135,7 @@ export default function AgentDetailPage() {
           >
             <Copy size={15} /> Duplicate
           </button>
-          <button
+          <button data-needs="edit"
             className="btn btn-danger"
             onClick={async () => {
               if (!confirm(`Delete ${agent.name}? They will leave every team.`)) return;
@@ -264,7 +264,7 @@ export default function AgentDetailPage() {
             <button className="btn" disabled={!dirty} onClick={() => setDraft(agent)}>
               Discard
             </button>
-            <button className="btn btn-primary" disabled={!dirty || saving || !draft.name.trim()} onClick={save}>
+            <button data-needs="edit" className="btn btn-primary" disabled={!dirty || saving || !draft.name.trim()} onClick={save}>
               {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Save changes
             </button>
           </div>

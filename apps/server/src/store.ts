@@ -32,6 +32,18 @@ export interface RunRow {
   costUsd: number;
   createdAt: string;
   endedAt?: string;
+  /** Who started it (email) when started through hosted access; empty for local use. */
+  startedBy?: string;
+}
+
+/** A person invited to the hosted Agent Town (docs/hosting.md). */
+export interface Person {
+  email: string;
+  role: "owner" | "operator" | "viewer";
+  invitedBy?: string;
+  /** Operators only: credit they may spend per day (USD). */
+  dailyBudgetUsd?: number;
+  createdAt: string;
 }
 
 export class Store {
@@ -79,6 +91,52 @@ export class Store {
     // Additive migration for databases created before vault_dir existed.
     const cols = this.db.prepare("PRAGMA table_info(runs)").all().map((r) => String(r.name));
     if (!cols.includes("vault_dir")) this.db.exec("ALTER TABLE runs ADD COLUMN vault_dir TEXT");
+    if (!cols.includes("started_by")) this.db.exec("ALTER TABLE runs ADD COLUMN started_by TEXT");
+    this.db.exec(`
+      -- People who may use the hosted Agent Town (owner comes from config, not this table).
+      CREATE TABLE IF NOT EXISTS people (
+        email TEXT PRIMARY KEY, role TEXT NOT NULL, invited_by TEXT,
+        daily_budget_usd REAL, created_at TEXT NOT NULL
+      );
+    `);
+  }
+
+  // People (hosted access) ---------------------------------------------------
+
+  listPeople(): Person[] {
+    return this.db.prepare("SELECT * FROM people ORDER BY created_at").all().map(rowToPerson);
+  }
+
+  getPerson(email: string): Person | undefined {
+    const r = this.db.prepare("SELECT * FROM people WHERE email = ?").get(email.toLowerCase());
+    return r ? rowToPerson(r) : undefined;
+  }
+
+  savePerson(p: Omit<Person, "createdAt"> & { createdAt?: string }): Person {
+    const email = p.email.trim().toLowerCase();
+    const existing = this.getPerson(email);
+    const createdAt = existing?.createdAt ?? p.createdAt ?? new Date().toISOString();
+    this.db
+      .prepare(
+        "INSERT INTO people (email, role, invited_by, daily_budget_usd, created_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(email) DO UPDATE SET role = excluded.role, daily_budget_usd = excluded.daily_budget_usd",
+      )
+      .run(email, p.role, p.invitedBy ?? existing?.invitedBy ?? null, p.dailyBudgetUsd ?? null, createdAt);
+    return this.getPerson(email)!;
+  }
+
+  deletePerson(email: string): boolean {
+    return Number(this.db.prepare("DELETE FROM people WHERE email = ?").run(email.toLowerCase()).changes) > 0;
+  }
+
+  setRunStartedBy(runId: string, email: string): void {
+    this.db.prepare("UPDATE runs SET started_by = ? WHERE id = ?").run(email.toLowerCase(), runId);
+  }
+
+  /** Credit spent today (UTC) by runs this person started. */
+  spentToday(email: string, now = new Date()): number {
+    const day = now.toISOString().slice(0, 10);
+    const r = this.db.prepare("SELECT COALESCE(SUM(cost_usd), 0) AS total FROM runs WHERE started_by = ? AND substr(created_at, 1, 10) = ?").get(email.toLowerCase(), day);
+    return Number(r?.total ?? 0);
   }
 
   // Agents (shared library) -------------------------------------------------
@@ -415,5 +473,16 @@ function rowToRun(r: Record<string, unknown>): RunRow {
     costUsd: Number(r.cost_usd),
     createdAt: String(r.created_at),
     endedAt: r.ended_at ? String(r.ended_at) : undefined,
+    startedBy: r.started_by ? String(r.started_by) : undefined,
+  };
+}
+
+function rowToPerson(r: Record<string, unknown>): Person {
+  return {
+    email: String(r.email),
+    role: String(r.role) as Person["role"],
+    invitedBy: r.invited_by ? String(r.invited_by) : undefined,
+    dailyBudgetUsd: r.daily_budget_usd == null ? undefined : Number(r.daily_budget_usd),
+    createdAt: String(r.created_at),
   };
 }

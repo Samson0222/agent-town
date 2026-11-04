@@ -10,7 +10,8 @@ Where we record plans, progress, and discussion points.
 | [architecture.md](architecture.md) | How the system is built: layers, contracts, event model, engine semantics, architecture decisions. |
 | [workflow-schema-v1.md](workflow-schema-v1.md) | Reference for the workflow JSON (v1), the single source of truth for a workflow. |
 | [milestone-0-opencode.md](milestone-0-opencode.md) | How to run the OpenCode verification on your machine and what to send back. |
-| [hosting.md](hosting.md) | Plan for public, login-only access (Cloudflare Tunnel + Access, roles). |
+| [hosting.md](hosting.md) | Design of public, login-only access (Cloudflare Tunnel + Access, roles). |
+| [hosting-setup.md](hosting-setup.md) | Step-by-step Windows setup for agents.devsam.my. |
 | [reference-review.md](reference-review.md) | What we reuse from each reference project in the brief, licenses, and recommendations. |
 | [discussion.md](discussion.md) | Decision log and open discussion points, newest first. |
 

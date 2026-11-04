@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { reduceRunState, type AgentTownEvent } from "@agent-town/core";
-import { API, api, type RunDetail } from "./api";
+import { api, apiBase, type RunDetail } from "./api";
 
 /**
  * Subscribes to a run's event stream. All view state is `reduceRunState(events)`,
@@ -26,7 +26,7 @@ export function useRun(runId: string) {
         setDetail(d);
         setEvents(d.events);
         lastSeq.current = d.events.at(-1)?.seq ?? 0;
-        es = new EventSource(`${API}/api/runs/${runId}/stream?after=${lastSeq.current}`);
+        es = new EventSource(`${apiBase()}/api/runs/${runId}/stream?after=${lastSeq.current}`);
         es.onopen = () => setConnected(true);
         es.onerror = () => setConnected(false);
         es.onmessage = (m) => {

@@ -164,3 +164,7 @@ label.field > .input, label.field > select, label.field > textarea { margin-top:
   .drawer { top: auto; left: 0; width: 100vw; height: 85vh; border-radius: 18px 18px 0 0; animation: sheet .22s ease; }
   @keyframes sheet { from { transform: translateY(40px); opacity: .4 } to { transform: none; opacity: 1 } }
 }
+
+/* Hosted access: hide actions a role can't use (the server refuses them too) */
+[data-role="viewer"] [data-needs] { display: none !important; }
+[data-role="operator"] [data-needs="owner"] { display: none !important; }

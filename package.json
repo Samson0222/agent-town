@@ -17,7 +17,8 @@
     "test": "npm test -w @agent-town/core && npm test -w @agent-town/server && npm test -w @agent-town/pixel-office && npm test -w @agent-town/adapter-opencode",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "build": "npm run build -w @agent-town/web",
-    "verify:opencode": "node scripts/verify-opencode.mjs"
+    "verify:opencode": "node scripts/verify-opencode.mjs",
+    "hosted": "node scripts/hosted.mjs"
   },
   "devDependencies": {
     "typescript": "5.9.3",

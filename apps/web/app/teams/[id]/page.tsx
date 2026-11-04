@@ -85,7 +85,7 @@ export default function TeamEditor() {
           <ArrowLeft size={18} />
         </Link>
         <input className="input max-w-sm !text-lg font-semibold" value={team.name} onChange={(e) => update({ name: e.target.value })} />
-        <button className="btn btn-primary" onClick={() => save()} disabled={!dirty}>
+        <button data-needs="edit" className="btn btn-primary" onClick={() => save()} disabled={!dirty}>
           <Save size={16} /> {dirty ? "Save team" : "Saved"}
         </button>
         {msg && <span className="text-sm" style={{ color: msg.ok ? "var(--ok)" : "var(--bad)" }}>{msg.text}</span>}

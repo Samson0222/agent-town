@@ -51,7 +51,7 @@ export default function SkillsPage() {
         title="Skills"
         subtitle="Reusable know-how (a SKILL.md plus optional files). Write it once, give it to any agent. It goes into their prompt next to their instructions."
         actions={
-          <button className="btn btn-primary" onClick={() => setMode("choose")}>
+          <button data-needs="edit" className="btn btn-primary" onClick={() => setMode("choose")}>
             <Plus size={16} /> New skill
           </button>
         }
@@ -185,7 +185,7 @@ function WriteSkill({ agents, onDone }: { agents: AgentTemplate[]; onDone: (id?:
       <SkillScopePicker value={scope} onChange={setScope} agents={agents} />
       {err && <p className="text-sm" style={{ color: "var(--bad)" }}>{err}</p>}
       <div className="flex justify-end">
-        <button className="btn btn-primary" disabled={!name.trim()} onClick={save}>
+        <button data-needs="edit" className="btn btn-primary" disabled={!name.trim()} onClick={save}>
           Save skill
         </button>
       </div>
@@ -244,7 +244,7 @@ function FolderSkill({ agents, onDone }: { agents: AgentTemplate[]; onDone: (id?
             <li key={w}>• {w}</li>
           ))}
         </ul>
-        <button className="btn btn-primary" onClick={() => onDone()}>
+        <button data-needs="edit" className="btn btn-primary" onClick={() => onDone()}>
           Done
         </button>
       </div>
@@ -273,7 +273,7 @@ function FolderSkill({ agents, onDone }: { agents: AgentTemplate[]; onDone: (id?
       {folders.length > 0 && <SkillScopePicker value={scope} onChange={setScope} agents={agents} />}
       {err && <p className="text-sm" style={{ color: "var(--bad)" }}>{err}</p>}
       <div className="flex justify-end">
-        <button className="btn btn-primary" disabled={!folders.length} onClick={save}>
+        <button data-needs="edit" className="btn btn-primary" disabled={!folders.length} onClick={save}>
           Import {folders.length > 1 ? `${folders.length} skills` : "skill"}
         </button>
       </div>
@@ -381,7 +381,7 @@ function GithubSkill({ agents, onDone }: { agents: AgentTemplate[]; onDone: (id?
       )}
       {err && <p className="text-sm" style={{ color: "var(--bad)" }}>{err}</p>}
       <div className="flex justify-end">
-        <button className="btn btn-primary" disabled={!preview} onClick={install}>
+        <button data-needs="edit" className="btn btn-primary" disabled={!preview} onClick={install}>
           Install
         </button>
       </div>
@@ -429,7 +429,7 @@ function StarterSkills({ agents, onDone }: { agents: AgentTemplate[]; onDone: (i
       {picked && <SkillScopePicker value={scope} onChange={setScope} agents={agents} />}
       {err && <p className="text-sm" style={{ color: "var(--bad)" }}>{err}</p>}
       <div className="flex justify-end">
-        <button className="btn btn-primary" disabled={!picked} onClick={install}>
+        <button data-needs="edit" className="btn btn-primary" disabled={!picked} onClick={install}>
           Install {picked?.name ?? ""}
         </button>
       </div>

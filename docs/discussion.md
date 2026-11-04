@@ -2,6 +2,48 @@
 
 Newest first. Record decisions and open points from each session.
 
+## 2026-11-04 — Item 2 done: hosted access (built, not switched on)
+
+**Built** (docs/hosting.md; Windows steps in docs/hosting-setup.md):
+- `apps/server/src/auth.ts`: our own Cloudflare Access JWT check. It verifies the RS256 signature against the team's public keys (cached for 10 minutes, refetched once for an unknown key id), the issuer, the audience, the expiry and nbf, and the email. It also holds the role table (`can()`) and a rate limiter.
+- **Two entry points** in `app.ts`:
+  - `handle` (local port 4317) acts as the owner. It refuses any request carrying Cloudflare headers.
+  - `handleTunnel` (port 4318, only started when hosted access is configured) requires a valid login for the owner or an invited person.
+  - Every route declares the permission it needs: view, edit, run or owner.
+- **Tunnel port safeguards:**
+  - mutating requests must come from the public origin and be JSON
+  - 600 requests/min and 120 writes/min per person
+  - 2 MB body limit
+  - `Cache-Control: no-store` and `nosniff` headers
+- **Budget and approvals:**
+  - Send and spend approvals: owner only.
+  - Operators get a daily budget for runs on credit-spending runtimes. A run is refused when the budget is used up, otherwise its cost cap is lowered to what's left.
+  - `runs.started_by` records who started each run.
+- **Audit trail:** `actor` on events (additive) for run start, pause, resume, stop, approvals, reassign and redirect. The activity feed shows "by <name>".
+- **People** table and page (owner only): invite, change role, set budget, remove.
+- **Web:**
+  - the API base is the local port on this computer and the same origin when hosted. The web server never proxies the API, so nothing can get around the tunnel port's check.
+  - `data-needs` on action buttons, plus `[data-role]` CSS, hides what a role can't do
+  - a "not invited" screen
+  - production security headers, including a CSP
+- **Scripts:**
+  - `npm run hosted -- --init …` writes `data/hosting.json`
+  - `npm run hosted -- --cloudflared <id>` prints the tunnel config with real paths
+  - `npm run hosted` builds and starts
+
+**Checked:**
+- 10 hosted tests:
+  - forged, expired, wrong-audience and wrong-issuer tokens, unknown key and tampered payload are all refused
+  - uninvited people are refused
+  - the local port refuses Cloudflare traffic
+  - each role gets exactly its permissions, and requests from another origin are refused
+  - send approvals are owner-only, and actors are recorded
+  - the operator budget is enforced
+- A browser end to end against a production build, behind a local stand-in for Cloudflare that signs test logins. The owner invited people and started a run, the viewer saw no controls, a stranger got "not invited", and an operator stopped the run with the feed showing "Stopped by op@…".
+- No console errors, and local mode is unchanged.
+
+**Not done:** switching the tunnel on (the user's step), and anything against real Cloudflare.
+
 ## 2026-11-04 — Item 1 done: office upgrades
 
 The user approved the order (office upgrades → hosted access → 2D/3D → external reporting). The domain for hosting is **devsam.my**.

@@ -128,7 +128,16 @@ The server persists every event and fans it out over SSE (`/api/runs/:id/stream`
 Nobody strolls while running. Desk pods are added when a team has more agents than work seats. Name tags are HTML laid over the canvas.
 
 ## Security / safety
-- Both the server and Next dev bind to `127.0.0.1`. CORS accepts only localhost origins, and other origins get 403.
+- **Binding:** every listener binds to `127.0.0.1`.
+- **Local API port (4317):**
+  - accepts only localhost origins (others get 403), and the caller acts as the owner
+  - refuses requests carrying Cloudflare headers
+- **Hosted access** ([hosting.md](hosting.md)):
+  - the optional tunnel-only port (4318) requires a verified Cloudflare Access JWT for the owner or an invited person (`people` table)
+  - every route declares the permission it needs (view / edit / run / owner)
+  - send and spend approvals are owner-only, and operators have a daily budget
+  - events carry `actor`
+  - the web app never proxies the API
 - Vault paths are confined to the run folder.
 - Generated HTML is served as `text/plain` and previewed in `sandbox=""`.
 - `.gitignore` excludes `data/`, `.env*`, `auth.json`, and M0 reports.

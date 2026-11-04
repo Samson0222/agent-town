@@ -34,7 +34,7 @@ import {
   type Team,
   type Workflow,
 } from "@agent-town/core";
-import { API, api, errorText, formatUsd } from "@/lib/api";
+import { api, apiBase, errorText, formatUsd } from "@/lib/api";
 import { AgentStatusChip, Avatar } from "./ui";
 
 type Names = Record<string, string>;
@@ -66,13 +66,16 @@ export function friendly(ev: AgentTownEvent, names: Names, labels: Record<string
   const n = (id?: string) => (id ? names[id] ?? id : "Someone");
   const step = (id?: string) => (id ? labels[id] ?? id : "a step");
   const b = (s: string) => <b className="font-semibold">{s}</b>;
+  // Hosted access: who did it (their email); locally it's just "you".
+  const who = ev.actor ? ev.actor.split("@")[0]! : "You";
+  const by = ev.actor ? <> by {b(who)}</> : null;
   switch (ev.type) {
     case "run.started":
-      return { icon: <Play size={14} />, tone: "accent", text: <>Run started: {b(ev.workflowName)}</> };
+      return { icon: <Play size={14} />, tone: "accent", text: <>Run started: {b(ev.workflowName)}{by}</> };
     case "run.paused":
-      return { icon: <Pause size={14} />, tone: "warn", text: <>Paused. Steps already running will finish; nothing new starts.</> };
+      return { icon: <Pause size={14} />, tone: "warn", text: <>Paused{by}. Steps already running will finish; nothing new starts.</> };
     case "run.resumed":
-      return { icon: <Play size={14} />, tone: "info", text: <>Resumed</> };
+      return { icon: <Play size={14} />, tone: "info", text: <>Resumed{by}</> };
     case "run.completed":
       return { icon: <Flag size={14} />, tone: "ok", text: <>All done! {ev.outputs.filter((f) => !f.startsWith("steps/")).length} files ready in Outputs.</> };
     case "run.failed":
@@ -100,12 +103,12 @@ export function friendly(ev: AgentTownEvent, names: Names, labels: Record<string
       return { actor: ev.from, icon: <Hand size={14} />, tone: "warn", text: <>Waiting for your OK: {ev.message}</> };
     case "approval.resolved":
       return ev.approved
-        ? { icon: <ThumbsUp size={14} />, tone: "ok", text: <>You approved{ev.note ? `: “${ev.note}”` : ""}</> }
-        : { icon: <ThumbsDown size={14} />, tone: "bad", text: <>You asked for changes{ev.note ? `: “${ev.note}”` : ""}</> };
+        ? { icon: <ThumbsUp size={14} />, tone: "ok", text: <>{ev.actor ? b(who) : who} approved{ev.note ? `: “${ev.note}”` : ""}</> }
+        : { icon: <ThumbsDown size={14} />, tone: "bad", text: <>{ev.actor ? b(who) : who} asked for changes{ev.note ? `: “${ev.note}”` : ""}</> };
     case "task.reassigned":
-      return { actor: ev.assignee, icon: <ArrowRightLeft size={14} />, tone: "accent", text: <>{b(step(ev.nodeId))} reassigned from {n(ev.previous)} to {b(n(ev.assignee))}</> };
+      return { actor: ev.assignee, icon: <ArrowRightLeft size={14} />, tone: "accent", text: <>{b(step(ev.nodeId))} reassigned from {n(ev.previous)} to {b(n(ev.assignee))}{by}</> };
     case "task.redirected":
-      return { icon: <CornerDownRight size={14} />, tone: "accent", text: <>New instruction for {b(step(ev.nodeId))}: “{ev.note}”</> };
+      return { icon: <CornerDownRight size={14} />, tone: "accent", text: <>New instruction for {b(step(ev.nodeId))}{by}: “{ev.note}”</> };
     case "tool.call":
       if (ev.category === "runtime") return { actor: ev.from, icon: <Wrench size={14} />, tone: "muted", text: <>{b(n(ev.from))} is using {ev.tool}</> };
       return { actor: ev.from, icon: <Wrench size={14} />, tone: "info", text: <>{b(n(ev.from))} ran {b(ev.tool)}</> };
@@ -247,7 +250,7 @@ export function ApprovalBanner({ runId, state, names, colors, disabled }: { runI
                 {a.preview}
               </pre>
             )}
-            <div className="flex flex-wrap items-center gap-2 border-t p-3" style={{ borderColor: "var(--line)", background: "var(--panel-2)" }}>
+            <div data-needs={risky ? "owner" : "run"} className="flex flex-wrap items-center gap-2 border-t p-3" style={{ borderColor: "var(--line)", background: "var(--panel-2)" }}>
               <input
                 className="input !h-9 min-w-48 flex-1 text-sm"
                 placeholder="Optional note — sent back as feedback if you ask for changes"
@@ -384,7 +387,7 @@ export function StepsPanel({ runId, state, workflow, team, live }: { runId: stri
                   {st?.error && <p className="text-xs" style={{ color: "var(--bad)" }}>{st.error}</p>}
                   {assignable && live && (
                     <>
-                      <div className="flex gap-2">
+                      <div data-needs="run" className="flex gap-2">
                         <select className="input !h-9 text-sm" value={agentId} onChange={(e) => setAgentId(e.target.value)}>
                           <option value="">Give this step to…</option>
                           {team.agents.map((x) => (
@@ -397,7 +400,7 @@ export function StepsPanel({ runId, state, workflow, team, live }: { runId: stri
                           <ArrowRightLeft size={14} /> Reassign
                         </button>
                       </div>
-                      <div className="flex gap-2">
+                      <div data-needs="run" className="flex gap-2">
                         <input className="input !h-9 text-sm" placeholder="Add an instruction for this step's next run" value={note} onChange={(e) => setNote(e.target.value)} />
                         <button className="btn btn-sm !h-9" disabled={!note} onClick={() => call("redirect", { nodeId: n.id, note })}>
                           <CornerDownRight size={14} /> Add
@@ -499,7 +502,7 @@ export function Outputs({ runId, files, vaultDir }: { runId: string; files: stri
   const [open, setOpen] = useState<{ file: string; content: string } | null>(null);
   const [mode, setMode] = useState<"preview" | "source">("preview");
   const show = async (file: string) => {
-    const res = await fetch(`${API}/api/runs/${runId}/files/${file.split("/").map(encodeURIComponent).join("/")}`);
+    const res = await fetch(`${apiBase()}/api/runs/${runId}/files/${file.split("/").map(encodeURIComponent).join("/")}`);
     setMode("preview");
     setOpen({ file, content: await res.text() });
   };

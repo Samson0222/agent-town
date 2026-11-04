@@ -1,7 +1,19 @@
 "use client";
 import type { AgentTownEvent, RunState, Team, Workflow } from "@agent-town/core";
 
-export const API = process.env.NEXT_PUBLIC_AGENT_TOWN_API ?? "http://127.0.0.1:4317";
+/**
+ * Where the API lives.
+ * - On this computer (localhost pages): the local API port, http://127.0.0.1:4317.
+ * - Through hosted access (e.g. https://agents.devsam.my): same origin; Cloudflare Tunnel sends
+ *   /api/* to the tunnel-only port, which checks the login. The web server never proxies the API,
+ *   so there is no way around that check.
+ */
+export function apiBase(): string {
+  if (process.env.NEXT_PUBLIC_AGENT_TOWN_API) return process.env.NEXT_PUBLIC_AGENT_TOWN_API;
+  if (typeof window === "undefined") return "http://127.0.0.1:4317";
+  const h = window.location.hostname;
+  return h === "localhost" || h === "127.0.0.1" || h === "[::1]" ? "http://127.0.0.1:4317" : "";
+}
 
 export class ApiError extends Error {
   constructor(public status: number, message: string, public details?: unknown) {
@@ -10,7 +22,7 @@ export class ApiError extends Error {
 }
 
 export async function api<T = unknown>(path: string, init?: { method?: string; json?: unknown }): Promise<T> {
-  const res = await fetch(API + path, {
+  const res = await fetch(apiBase() + path, {
     method: init?.method ?? (init?.json === undefined ? "GET" : "POST"),
     headers: init?.json === undefined ? undefined : { "Content-Type": "application/json" },
     body: init?.json === undefined ? undefined : JSON.stringify(init.json),

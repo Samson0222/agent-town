@@ -1,4 +1,4 @@
-# Hosted access (plan, not built yet)
+# Hosted access (built; switching it on is your step: [hosting-setup.md](hosting-setup.md))
 
 **Goal:** you and the people you invite can open Agent Town from anywhere at a public `https://` address. Nobody gets past the login. Agent Town, OpenCode and your model logins keep running on your Windows PC.
 
@@ -73,7 +73,7 @@ I'll write a click-by-click guide, and a Node script that prints the exact confi
 
 ## What we build
 1. **Production mode:**
-   - an `npm run start:hosted` Node script (Windows-friendly) that builds the web app and starts it plus both API ports
+   - an `npm run hosted` Node script (Windows-friendly) that builds the web app and starts it plus both API ports
    - a same-origin `/api`, so no CORS is needed through the tunnel
 2. **Auth on the tunnel port:**
    - JWT verification (Cloudflare's public keys, cached)

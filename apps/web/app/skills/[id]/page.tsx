@@ -108,10 +108,10 @@ export default function SkillPage() {
               {busy === "check" ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />} Update from source
             </button>
           )}
-          <button className="btn btn-primary" disabled={!dirty || busy === "save"} onClick={() => save()}>
+          <button data-needs="edit" className="btn btn-primary" disabled={!dirty || busy === "save"} onClick={() => save()}>
             <Save size={15} /> Save
           </button>
-          <button
+          <button data-needs="edit"
             className="btn btn-danger"
             onClick={async () => {
               if (!confirm(`Delete "${skill.name}"? It will be removed from every agent.`)) return;
@@ -142,7 +142,7 @@ export default function SkillPage() {
               <button className="btn btn-ghost" onClick={() => setCheck(null)}>
                 Not now
               </button>
-              <button
+              <button data-needs="edit"
                 className="btn btn-primary"
                 onClick={async () => {
                   await save({ ...draft, name: check.skill.name, description: check.skill.description, content: check.skill.content, files: check.skill.files, origin: check.skill.origin });

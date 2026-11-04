@@ -83,15 +83,15 @@ export default function RunPage() {
           </div>
           <div className="flex items-center gap-2">
             {state.status === "paused" ? (
-              <button className="btn btn-primary" disabled={!live} onClick={() => control("resume")}>
+              <button data-needs="run" className="btn btn-primary" disabled={!live} onClick={() => control("resume")}>
                 <Play size={16} /> Resume
               </button>
             ) : (
-              <button className="btn" disabled={!live || state.status !== "running"} onClick={() => control("pause")}>
+              <button data-needs="run" className="btn" disabled={!live || state.status !== "running"} onClick={() => control("pause")}>
                 <Pause size={16} /> Pause
               </button>
             )}
-            <button className="btn btn-danger" disabled={!live} onClick={() => control("stop")}>
+            <button data-needs="run" className="btn btn-danger" disabled={!live} onClick={() => control("stop")}>
               <Square size={15} /> Stop
             </button>
           </div>

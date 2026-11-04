@@ -24,6 +24,10 @@ export interface StartOptions {
   runId?: string;
   /** Start even if preflight reports errors. Default false. */
   force?: boolean;
+  /** Person starting the run (recorded on run.started). */
+  actor?: string;
+  /** Lower the run's cost cap (e.g. to someone's remaining daily budget). Never raises it. */
+  maxCostUsd?: number;
 }
 
 export class PreflightError extends Error {
@@ -46,7 +50,7 @@ export class WorkflowEngine {
     const runId = opts.runId ?? (this.deps.newId ?? (() => crypto.randomUUID()))();
     const run = new Run(runId, wf, team, inputs, this.deps, pf);
     this.runs.set(runId, run);
-    run.begin();
+    run.begin(opts);
     return run;
   }
 
@@ -134,35 +138,35 @@ export class Run {
     return this.status === "completed" || this.status === "failed" || this.status === "stopped";
   }
 
-  pause(reason?: string) {
+  pause(reason?: string, actor?: string) {
     if (this.status !== "running") throw new Error(`Cannot pause a ${this.status} run`);
     this.paused = true;
     this.status = "paused";
-    this.emit({ type: "run.paused", reason: reason ?? "Paused by user — in-flight steps finish, no new steps start" });
+    this.emit({ type: "run.paused", reason: reason ?? "Paused by user — in-flight steps finish, no new steps start", actor });
   }
 
-  resume() {
+  resume(actor?: string) {
     if (this.status !== "paused") throw new Error(`Cannot resume a ${this.status} run`);
     this.paused = false;
     this.status = "running";
-    this.emit({ type: "run.resumed" });
+    this.emit({ type: "run.resumed", actor });
     this.pump();
   }
 
-  async stop(reason = "Stopped by user") {
+  async stop(reason = "Stopped by user", actor?: string) {
     if (this.isTerminal()) return;
     const sessions = [...this.sessions.values()];
-    this.finish("stopped", { type: "run.stopped", reason });
+    this.finish("stopped", { type: "run.stopped", reason, actor });
     for (const a of this.approvals.values()) a.resolve({ approved: false, note: "run stopped" });
     this.approvals.clear();
     await Promise.all(sessions.map(({ adapter, sessionId }) => adapter.cancel(sessionId).catch(() => undefined)));
   }
 
-  approve(approvalId: string, approved: boolean, note?: string) {
+  approve(approvalId: string, approved: boolean, note?: string, actor?: string) {
     const a = this.approvals.get(approvalId);
     if (!a) throw new Error(`No pending approval ${approvalId}`);
     this.approvals.delete(approvalId);
-    this.emit({ type: "approval.resolved", approvalId, approved, note, nodeId: a.nodeId });
+    this.emit({ type: "approval.resolved", approvalId, approved, note, nodeId: a.nodeId, actor });
     a.resolve({ approved, note });
   }
 
@@ -171,7 +175,7 @@ export class Run {
   }
 
   /** Reassign a node that is not currently running to another agent in the team. */
-  async reassign(nodeId: string, agentId: string) {
+  async reassign(nodeId: string, agentId: string, actor?: string) {
     const node = this.nodes.get(nodeId);
     if (!node) throw new Error(`Unknown node ${nodeId}`);
     if (!(node.type === "agentTask" || node.type === "merge" || node.type === "toolCall")) {
@@ -187,23 +191,24 @@ export class Run {
     }
     const previous = nodeAgentId(node, this.overrides);
     this.overrides.set(nodeId, agentId);
-    this.emit({ type: "task.reassigned", taskId: taskId(nodeId), nodeId, assignee: agentId, previous, from: agentId });
+    this.emit({ type: "task.reassigned", taskId: taskId(nodeId), nodeId, assignee: agentId, previous, from: agentId, actor });
   }
 
   /** Add an instruction the node will see the next time it runs. */
-  redirect(nodeId: string, note: string) {
+  redirect(nodeId: string, note: string, actor?: string) {
     if (!this.nodes.has(nodeId)) throw new Error(`Unknown node ${nodeId}`);
     const list = this.redirects.get(nodeId) ?? [];
     list.push(note);
     this.redirects.set(nodeId, list);
-    this.emit({ type: "task.redirected", taskId: taskId(nodeId), nodeId, note });
+    this.emit({ type: "task.redirected", taskId: taskId(nodeId), nodeId, note, actor });
   }
 
   // ---------------------------------------------------------------------------
   // Lifecycle
 
-  begin() {
+  begin(opts: Pick<StartOptions, "actor" | "maxCostUsd"> = {}) {
     this.status = "running";
+    if (opts.maxCostUsd !== undefined) this.costCap = Math.max(0, Math.min(this.costCap, opts.maxCostUsd));
     const agents: AgentInfo[] = this.team.agents.map((a) => {
       const { runtime, model } = resolveAgent(this.team, a);
       return {
@@ -225,6 +230,7 @@ export class Run {
       inputs: { ...this.inputs },
       agents,
       costCapUsd: this.costCap,
+      actor: opts.actor,
     });
     const warnings = this.preflightResult.issues.map((i) => `${i.level}: ${i.message}`);
     if (warnings.length) this.emit({ type: "preflight", warnings });

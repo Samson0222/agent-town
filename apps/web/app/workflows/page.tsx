@@ -60,7 +60,7 @@ export default function WorkflowsPage() {
             <button className="btn" onClick={() => fileRef.current?.click()}>
               <Upload size={16} /> Import JSON
             </button>
-            <button className="btn btn-primary" onClick={() => setCreating(true)}>
+            <button data-needs="edit" className="btn btn-primary" onClick={() => setCreating(true)}>
               <Plus size={16} /> New workflow
             </button>
           </>
@@ -85,7 +85,7 @@ export default function WorkflowsPage() {
               ))}
             </select>
           </label>
-          <button className="btn btn-primary" onClick={create} disabled={!teamId}>
+          <button data-needs="edit" className="btn btn-primary" onClick={create} disabled={!teamId}>
             Create &amp; open builder
           </button>
           <button className="btn btn-ghost" onClick={() => setCreating(false)}>

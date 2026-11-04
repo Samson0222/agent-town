@@ -72,7 +72,7 @@ export default function TeamsPage() {
         title="Teams"
         subtitle="A team is a set of agents you design: role, instructions, model, tools and look."
         actions={
-          <button className="btn btn-primary" onClick={create}>
+          <button data-needs="edit" className="btn btn-primary" onClick={create}>
             <Plus size={16} /> New team
           </button>
         }
