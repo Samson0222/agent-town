@@ -7,6 +7,7 @@ import { Office, officePeople, type OfficePerson } from "@/components/Office";
 import { AgentStatusChip, Avatar, EmptyState, RunStatusChip } from "@/components/ui";
 import { api, errorText, type RunRow } from "@/lib/api";
 import { useRun } from "@/lib/useRun";
+import { reporterPeople, useReporters } from "@/lib/reporters";
 
 /**
  * The office is always open: every agent on the team is here, at their desk or
@@ -86,7 +87,12 @@ export default function OfficePage() {
 
 function IdleOffice({ team }: { team: Team }) {
   const [selected, setSelected] = useState<string | null>(null);
-  const people: OfficePerson[] = useMemo(() => team.agents.map((a) => ({ id: a.id, name: a.name, color: a.appearance.color, status: "idle", sprite: a.appearance.sprite })), [team]);
+  const reporters = useReporters(team.id);
+  const outside = useMemo(() => reporterPeople(reporters), [reporters]);
+  const people: OfficePerson[] = useMemo(
+    () => [...team.agents.map((a) => ({ id: a.id, name: a.name, color: a.appearance.color, status: "idle" as const, sprite: a.appearance.sprite })), ...outside],
+    [team, outside],
+  );
   const agent = team.agents.find((a) => a.id === selected);
   return (
     <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
@@ -112,6 +118,18 @@ function IdleOffice({ team }: { team: Team }) {
               </button>
             </li>
           ))}
+          {reporters.map((r) => (
+            <li key={r.id}>
+              <button onClick={() => setSelected(`ext:${r.id}`)} className="flex w-full items-center gap-3 rounded-xl p-2 text-left hover:bg-[var(--panel-2)]" style={{ background: selected === `ext:${r.id}` ? "var(--accent-soft)" : undefined }}>
+                <Avatar name={r.name} color={r.color} sprite={r.sprite} size={34} />
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-semibold">{r.name}</div>
+                  <div className="muted truncate text-xs">{r.summary ?? "—"}</div>
+                </div>
+                <AgentStatusChip status={r.status} />
+              </button>
+            </li>
+          ))}
         </ul>
         {agent && (
           <div className="mt-4 rounded-xl p-3 text-sm" style={{ background: "var(--panel-2)" }}>
@@ -131,9 +149,13 @@ function LiveOffice({ team, run }: { team: Team; run: RunRow }) {
   const { state } = useRun(run.id);
   const [selected, setSelected] = useState<string | null>(null);
   const agents = useMemo(() => state.agentOrder.map((a) => state.agents[a]!).filter(Boolean) as AgentState[], [state]);
+  const reporters = useReporters(team.id);
   const people: OfficePerson[] = useMemo(
-    () => (agents.length ? officePeople(state) : team.agents.map((a) => ({ id: a.id, name: a.name, color: a.appearance.color, status: "idle" as const, sprite: a.appearance.sprite }))),
-    [agents, state, team],
+    () => [
+      ...(agents.length ? officePeople(state) : team.agents.map((a) => ({ id: a.id, name: a.name, color: a.appearance.color, status: "idle" as const, sprite: a.appearance.sprite }))),
+      ...reporterPeople(reporters),
+    ],
+    [agents, state, team, reporters],
   );
   return (
     <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">

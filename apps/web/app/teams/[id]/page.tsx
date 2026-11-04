@@ -2,10 +2,12 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, FolderInput, Plus, Save, UserMinus, UserPlus } from "lucide-react";
+import { ArrowLeft, Copy, FolderInput, KeyRound, Plus, Radio, Save, Trash2, UserMinus, UserPlus } from "lucide-react";
 import type { AgentTemplate, Team } from "@agent-town/core";
 import { api, errorText, type RuntimeInfo } from "@/lib/api";
-import { Avatar } from "@/components/ui";
+import { AgentStatusChip, Avatar } from "@/components/ui";
+import { useMe } from "@/lib/me";
+import { useReporters } from "@/lib/reporters";
 
 /** Team = a set of agents picked from the shared Agents list, plus a vault and defaults. */
 export default function TeamEditor() {
@@ -205,6 +207,110 @@ export default function TeamEditor() {
           />
         </label>
       </section>
+
+      <OutsideAgents teamId={team.id} />
+    </div>
+  );
+}
+
+/**
+ * Agents that run outside Agent Town (Codex, other bots, scripts) and report their status
+ * into this team's office. Owner only; each gets a token that is shown once.
+ */
+function OutsideAgents({ teamId }: { teamId: string }) {
+  const { me } = useMe();
+  const list = useReporters(teamId, 4000);
+  const [name, setName] = useState("");
+  const [look, setLook] = useState(0);
+  const [shown, setShown] = useState<{ name: string; token: string } | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  if (me && me.role !== "owner") return null;
+
+  const add = async () => {
+    setErr(null);
+    try {
+      const r = await api<{ reporter: { name: string }; token: string }>(`/api/teams/${encodeURIComponent(teamId)}/reporters`, { json: { name, sprite: `char-${look}`, color: COLORS[look % COLORS.length] } });
+      setShown({ name: r.reporter.name, token: r.token });
+      setName("");
+    } catch (e) {
+      setErr(errorText(e));
+    }
+  };
+  const rotate = async (id: string, botName: string) => {
+    if (!confirm(`Make a new token for ${botName}? The old one stops working.`)) return;
+    const r = await api<{ token: string }>(`/api/reporters/${encodeURIComponent(id)}/token`, { method: "POST" });
+    setShown({ name: botName, token: r.token });
+  };
+  const remove = async (id: string, botName: string) => {
+    if (!confirm(`Remove ${botName} from the office?`)) return;
+    await api(`/api/reporters/${encodeURIComponent(id)}`, { method: "DELETE" });
+  };
+
+  return (
+    <section className="panel p-5">
+      <h2 className="flex items-center gap-2 font-semibold">
+        <Radio size={16} /> Outside agents
+      </h2>
+      <p className="muted mb-4 text-sm">Bots that run elsewhere and report what they&apos;re doing into this office. Task types only, never accounts, messages or amounts.</p>
+      <ul className="mb-4 space-y-1.5">
+        {list.map((r) => (
+          <li key={r.id} className="flex items-center gap-3 rounded-xl p-2" style={{ background: "var(--panel-2)" }}>
+            <Avatar name={r.name} color={r.color} sprite={r.sprite} size={32} />
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-semibold">{r.name}</div>
+              <div className="muted truncate text-xs">{r.summary ?? (r.reportedAt ? "—" : "No reports yet")}</div>
+            </div>
+            <AgentStatusChip status={r.status} />
+            <button className="btn btn-ghost btn-icon" onClick={() => rotate(r.id, r.name)} aria-label={`New token for ${r.name}`} title="New token">
+              <KeyRound size={15} />
+            </button>
+            <button className="btn btn-ghost btn-icon" onClick={() => remove(r.id, r.name)} aria-label={`Remove ${r.name}`}>
+              <Trash2 size={15} />
+            </button>
+          </li>
+        ))}
+      </ul>
+      <div className="flex flex-wrap items-end gap-2">
+        <input className="input max-w-64" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Codex on my Mac" aria-label="Name" />
+        <div className="flex gap-1" role="group" aria-label="Look">
+          {Array.from({ length: 6 }, (_, i) => (
+            <button key={i} type="button" onClick={() => setLook(i)} aria-label={`Look ${i + 1}`} className="rounded-lg p-0.5" style={{ outline: look === i ? "2px solid var(--accent)" : undefined }}>
+              <Avatar name={name || "?"} color={COLORS[i % COLORS.length]!} sprite={`char-${i}`} size={28} />
+            </button>
+          ))}
+        </div>
+        <button className="btn btn-primary" disabled={!name.trim()} onClick={add}>
+          <Plus size={16} /> Add
+        </button>
+      </div>
+      {err && <p className="mt-2 text-sm" style={{ color: "var(--bad)" }}>{err}</p>}
+      {shown && <TokenOnce name={shown.name} token={shown.token} onClose={() => setShown(null)} />}
+    </section>
+  );
+}
+
+const COLORS = ["#2a9d8f", "#e76f51", "#4f86f7", "#9b5de5", "#e9c46a", "#f15bb5"];
+
+function TokenOnce({ name, token, onClose }: { name: string; token: string; onClose: () => void }) {
+  const cmd = `$env:AGENT_TOWN_BOT_TOKEN = "${token}"\nnode scripts/agent-town-report.mjs coding "Writing the weekly report"`;
+  return (
+    <div className="mt-4 space-y-2 rounded-xl border p-4 text-sm" style={{ borderColor: "var(--warn)", background: "var(--warn-soft)" }}>
+      <div className="font-semibold">Token for {name}: copy it now, it won&apos;t be shown again.</div>
+      <div className="flex gap-2">
+        <code className="min-w-0 flex-1 truncate rounded-lg px-2 py-1.5 font-mono text-xs" style={{ background: "var(--panel)" }}>
+          {token}
+        </code>
+        <button className="btn btn-sm" onClick={() => void navigator.clipboard?.writeText(token)}>
+          <Copy size={14} /> Copy
+        </button>
+      </div>
+      <pre className="overflow-x-auto rounded-lg p-2 font-mono text-xs" style={{ background: "var(--panel)" }}>
+        {cmd}
+      </pre>
+      <p className="muted text-xs">From another device, also set AGENT_TOWN_URL=https://agents.devsam.my and a Cloudflare service token (CF_ACCESS_CLIENT_ID / CF_ACCESS_CLIENT_SECRET). See docs/hosting-setup.md.</p>
+      <button className="btn btn-sm" onClick={onClose}>
+        Done
+      </button>
     </div>
   );
 }

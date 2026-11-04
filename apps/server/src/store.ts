@@ -36,6 +36,22 @@ export interface RunRow {
   startedBy?: string;
 }
 
+/** An agent running outside Agent Town that reports its status into a team's office. */
+export interface Reporter {
+  id: string;
+  teamId: string;
+  name: string;
+  color: string;
+  /** Office character, e.g. "char-3". */
+  sprite: string;
+  createdAt: string;
+  /** Latest report (status is one of REPORT_STATUSES). */
+  status?: string;
+  summary?: string;
+  with?: string;
+  reportedAt?: string;
+}
+
 /** A person invited to the hosted Agent Town (docs/hosting.md). */
 export interface Person {
   email: string;
@@ -93,12 +109,57 @@ export class Store {
     if (!cols.includes("vault_dir")) this.db.exec("ALTER TABLE runs ADD COLUMN vault_dir TEXT");
     if (!cols.includes("started_by")) this.db.exec("ALTER TABLE runs ADD COLUMN started_by TEXT");
     this.db.exec(`
+      -- Outside agents (Codex, other bots, scripts) that report status into an office.
+      -- Only a SHA-256 hash of each token is stored.
+      CREATE TABLE IF NOT EXISTS reporters (
+        id TEXT PRIMARY KEY, team_id TEXT NOT NULL, name TEXT NOT NULL, color TEXT NOT NULL,
+        sprite TEXT NOT NULL, token_hash TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL,
+        status TEXT, summary TEXT, with_id TEXT, reported_at TEXT
+      );
+    `);
+    this.db.exec(`
       -- People who may use the hosted Agent Town (owner comes from config, not this table).
       CREATE TABLE IF NOT EXISTS people (
         email TEXT PRIMARY KEY, role TEXT NOT NULL, invited_by TEXT,
         daily_budget_usd REAL, created_at TEXT NOT NULL
       );
     `);
+  }
+
+  // Outside agents ------------------------------------------------------------
+
+  listReporters(teamId?: string): Reporter[] {
+    const rows = teamId ? this.db.prepare("SELECT * FROM reporters WHERE team_id = ? ORDER BY created_at").all(teamId) : this.db.prepare("SELECT * FROM reporters ORDER BY created_at").all();
+    return rows.map(rowToReporter);
+  }
+
+  getReporter(id: string): Reporter | undefined {
+    const r = this.db.prepare("SELECT * FROM reporters WHERE id = ?").get(id);
+    return r ? rowToReporter(r) : undefined;
+  }
+
+  reporterByTokenHash(hash: string): Reporter | undefined {
+    const r = this.db.prepare("SELECT * FROM reporters WHERE token_hash = ?").get(hash);
+    return r ? rowToReporter(r) : undefined;
+  }
+
+  createReporter(r: Omit<Reporter, "createdAt">, tokenHash: string): Reporter {
+    this.db
+      .prepare("INSERT INTO reporters (id, team_id, name, color, sprite, token_hash, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)")
+      .run(r.id, r.teamId, r.name, r.color, r.sprite, tokenHash, new Date().toISOString());
+    return this.getReporter(r.id)!;
+  }
+
+  setReporterToken(id: string, tokenHash: string): void {
+    this.db.prepare("UPDATE reporters SET token_hash = ? WHERE id = ?").run(tokenHash, id);
+  }
+
+  saveReport(id: string, status: string, summary: string, withId: string | undefined, at = new Date()): void {
+    this.db.prepare("UPDATE reporters SET status = ?, summary = ?, with_id = ?, reported_at = ? WHERE id = ?").run(status, summary, withId ?? null, at.toISOString(), id);
+  }
+
+  deleteReporter(id: string): boolean {
+    return Number(this.db.prepare("DELETE FROM reporters WHERE id = ?").run(id).changes) > 0;
   }
 
   // People (hosted access) ---------------------------------------------------
@@ -474,6 +535,21 @@ function rowToRun(r: Record<string, unknown>): RunRow {
     createdAt: String(r.created_at),
     endedAt: r.ended_at ? String(r.ended_at) : undefined,
     startedBy: r.started_by ? String(r.started_by) : undefined,
+  };
+}
+
+function rowToReporter(r: Record<string, unknown>): Reporter {
+  return {
+    id: String(r.id),
+    teamId: String(r.team_id),
+    name: String(r.name),
+    color: String(r.color),
+    sprite: String(r.sprite),
+    createdAt: String(r.created_at),
+    status: r.status ? String(r.status) : undefined,
+    summary: r.summary ? String(r.summary) : undefined,
+    with: r.with_id ? String(r.with_id) : undefined,
+    reportedAt: r.reported_at ? String(r.reported_at) : undefined,
   };
 }
 

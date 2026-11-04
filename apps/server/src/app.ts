@@ -33,6 +33,7 @@ import { DiskVault } from "./vault";
 import { OpenCodeAdapter, type OpenCodeAdapterOptions } from "@agent-town/adapter-opencode";
 import { applyAssignment, fetchGithubSkill, isAssigned, isChoices, skillFromFiles, slugify } from "./skills";
 import { AccessVerifier, AuthError, RateLimiter, ROLES, can, type Permission, type Role } from "./auth";
+import { REPORT_MAX_BYTES, hashToken, newToken, parseReport, presence } from "./reports";
 
 export interface AppOptions {
   dbFile: string;
@@ -539,6 +540,49 @@ export function createApp(opts: AppOptions) {
     "run",
   );
 
+  // Outside agents reporting into an office -------------------------------
+  route("GET", "/api/teams/:id/reporters", (_q, _r, p) => {
+    mustTeam(p.id!);
+    return store.listReporters(p.id!).map((r) => presence(r));
+  });
+  route(
+    "POST",
+    "/api/teams/:id/reporters",
+    (_q, _r, p, body) => {
+      const team = mustTeam(p.id!);
+      const b = (body ?? {}) as { name?: string; color?: string; sprite?: string };
+      const name = String(b.name ?? "").trim().slice(0, 40);
+      if (!name) fail(400, "Give it a name");
+      const color = /^#[0-9a-f]{6}$/i.test(b.color ?? "") ? b.color! : "#6c7bd8";
+      const sprite = /^char-\d$/.test(b.sprite ?? "") ? b.sprite! : `char-${store.listReporters(team.id).length % 6}`;
+      const { token, hash } = newToken();
+      const reporter = store.createReporter({ id: newId(name), teamId: team.id, name, color, sprite }, hash);
+      // The token is shown once and never stored in plain text.
+      return { reporter: presence(reporter), token };
+    },
+    "owner",
+  );
+  route(
+    "POST",
+    "/api/reporters/:id/token",
+    (_q, _r, p) => {
+      if (!store.getReporter(p.id!)) fail(404, "Not found");
+      const { token, hash } = newToken();
+      store.setReporterToken(p.id!, hash);
+      return { token };
+    },
+    "owner",
+  );
+  route(
+    "DELETE",
+    "/api/reporters/:id",
+    (_q, _r, p) => {
+      if (!store.deleteReporter(p.id!)) fail(404, "Not found");
+      return { ok: true };
+    },
+    "owner",
+  );
+
   // People (hosted access) -------------------------------------------------
   route("GET", "/api/me", (_q, _r, _p, _b, me) => ({ ...me, hosted: !!opts.access, spentTodayUsd: me.local ? undefined : store.spentToday(me.email) }));
   route(
@@ -598,7 +642,28 @@ export function createApp(opts: AppOptions) {
     if (origin && !isLocalOrigin(origin)) return send(res, 403, { error: "Only localhost origins are allowed" });
     // Anything that came through Cloudflare must use the tunnel port, never this one.
     if (req.headers["cf-access-jwt-assertion"] || req.headers["cf-connecting-ip"]) return send(res, 403, { error: "This port is for this computer only" });
+    if (req.method === "POST" && req.url === "/api/report") return handleReport(req, res);
     return dispatch(req, res, localOwner, 5_000_000);
+  }
+
+  const perBot = new RateLimiter(1, 2_000);
+  const allBots = new RateLimiter(120, 60_000);
+
+  /** POST /api/report from an outside agent: bot token required (both ports). */
+  async function handleReport(req: IncomingMessage, res: ServerResponse) {
+    const auth = String(req.headers.authorization ?? "");
+    const m = /^Bearer (atb_[A-Za-z0-9_-]{20,})$/.exec(auth);
+    if (!m) return send(res, 401, { error: "Missing or malformed bot token" });
+    const bot = store.reporterByTokenHash(hashToken(m[1]!));
+    if (!bot) return send(res, 401, { error: "Unknown bot token" });
+    if (!allBots.allow("all") || !perBot.allow(bot.id)) return send(res, 429, { error: "Too many reports — at most one every 2 seconds" });
+    try {
+      const report = parseReport(await readJson(req, REPORT_MAX_BYTES));
+      store.saveReport(bot.id, report.status, report.summary, report.with);
+      res.writeHead(204).end();
+    } catch (err) {
+      send(res, err instanceof HttpError ? err.status : 400, { error: (err as Error).message });
+    }
   }
 
   const perUser = new RateLimiter(600, 60_000);
@@ -614,6 +679,16 @@ export function createApp(opts: AppOptions) {
     res.setHeader("X-Content-Type-Options", "nosniff");
     const access = opts.access;
     if (!access) return send(res, 404, { error: "Hosted access is off" });
+    if (req.method === "POST" && req.url === "/api/report") {
+      // Outside agents: a Cloudflare login (a service token is fine) AND a bot token.
+      try {
+        const raw = req.headers["cf-access-jwt-assertion"];
+        await access.verifier.verify(Array.isArray(raw) ? raw[0] : raw, { allowService: true });
+      } catch (err) {
+        return send(res, 401, { error: (err as Error).message });
+      }
+      return handleReport(req, res);
+    }
     let me: Me;
     try {
       const raw = req.headers["cf-access-jwt-assertion"];

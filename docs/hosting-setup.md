@@ -82,6 +82,21 @@ cloudflared tunnel run agent-town
 
 Both are needed: Cloudflare decides who can sign in, and Agent Town decides what they can do. Someone who can sign in but isn't on the People page sees "ask the owner to invite you".
 
+## 9. Outside agents reporting from other devices (optional)
+Bots on this PC report straight to `http://127.0.0.1:4317` with only their bot token. A bot somewhere else (another computer, a cloud VM) reports through the tunnel, and Cloudflare needs to let it in without an email login:
+1. Zero Trust → **Access → Service credentials → Service Tokens** → **Create service token**, e.g. `agent-town-bots`. Copy the **Client ID** and **Client Secret**; the secret is shown once.
+2. Zero Trust → **Access → Applications → Add an application → Self-hosted**:
+   - Name: `Agent Town reports`
+   - Domain: `agents.devsam.my`, path `api/report`
+   - Policy: action **Service Auth**, include **Service Token** `agent-town-bots`
+3. On the bot's machine set:
+   - `AGENT_TOWN_URL=https://agents.devsam.my`
+   - `AGENT_TOWN_BOT_TOKEN`: from the team page → Outside agents
+   - `CF_ACCESS_CLIENT_ID` and `CF_ACCESS_CLIENT_SECRET`
+4. Run `node scripts/agent-town-report.mjs coding "Short task summary"`. Copy that script to the bot's machine; it needs Node 22+.
+
+Agent Town checks both the Cloudflare service token and the bot token. A service token alone can't use anything else in Agent Town.
+
 ## Good to know
 - **Stay awake:** the PC must be on and awake while you want access. Check Windows sleep settings.
 - **Run as a service (optional):** cloudflared can run as a Windows service (`cloudflared service install`). The service may look for its config in a different folder than your user profile, so get it working in a terminal first and then follow Cloudflare's guide for the service.

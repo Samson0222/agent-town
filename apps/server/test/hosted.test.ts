@@ -157,6 +157,20 @@ describe("hosted access: roles", () => {
     expect(ev.actor).toBe(OWNER);
   });
 
+  it("outside agents report through the tunnel with a Cloudflare service token plus their bot token", async () => {
+    const owner = as(OWNER);
+    const { token } = (await call("/api/teams/content-team/reporters", { token: owner, method: "POST", json: { name: "Grok bot" } })).body;
+    const report = (headers: Record<string, string>) =>
+      fetch(tBase + "/api/report", { method: "POST", headers: { "Content-Type": "application/json", ...headers }, body: JSON.stringify({ status: "thinking", summary: "Planning a thread" }) });
+    expect((await report({ Authorization: `Bearer ${token}` })).status).toBe(401); // no Cloudflare login
+    const service = jwt({ common_name: "abc123.access" });
+    expect((await report({ Authorization: `Bearer ${token}`, "Cf-Access-Jwt-Assertion": service })).status).toBe(204);
+    // a service token alone is not a person: it can't use the rest of the API
+    expect((await call("/api/teams", { token: service })).status).toBe(401);
+    // only the owner adds outside agents
+    expect((await call("/api/teams/content-team/reporters", { token: as("op@example.com"), method: "POST", json: { name: "x" } })).status).toBe(403);
+  });
+
   it("operators can't start real-credit runs past their daily budget", async () => {
     // Pretend the operator already spent their budget today.
     app.store.db.prepare("UPDATE runs SET cost_usd = 1 WHERE started_by = 'op@example.com'").run();

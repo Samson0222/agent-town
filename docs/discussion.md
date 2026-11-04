@@ -2,6 +2,29 @@
 
 Newest first. Record decisions and open points from each session.
 
+## 2026-11-04 — Item 4 done: outside agents report into the office
+
+- **Who:** agents running outside Agent Town (Codex, Grok bots, scripts) are added per team on the team page, by the owner only.
+- **Token:** each gets a token (`atb_…`, 24 random bytes) that is shown once. Only its SHA-256 hash is stored, it can be rotated, and the agent can be removed.
+- **Reporting:** `POST /api/report` with `Authorization: Bearer atb_…` and `{status, summary, with}`.
+  - **Statuses:** coding, terminal, browsing, reading, thinking, needs-you, error, idle, done. They map to agent status plus a tool hint, so both office views use the same looks.
+  - **Summary:** control and formatting characters and `<>` and backticks are stripped, and it is cut to 80 characters.
+  - **Limits:** body ≤ 4 KB; 1 report per 2 s per bot, 120 per minute overall.
+  - **Stale:** no report for 30 minutes → shown as idle.
+  - **Meetings:** `with` (another bot's id) puts two bots in a meeting.
+- **Ports:**
+  - On the local port the bot token is enough.
+  - On the tunnel port a Cloudflare Access login is also required. A **service token** is accepted here only, and gets no other access (tested).
+  - Reports skip the origin check because they use a bearer token, not cookies.
+- **Not event-sourced:** presence is live state, not part of any run's event log, so run replay is unaffected. Only the latest report per bot is kept.
+- **Office:** outside agents appear in the 2D and 3D office and in the team list (ids `ext:<id>`). The office page refreshes them every 5 s.
+- **`scripts/agent-town-report.mjs`:** Node, works on Windows.
+  - 60 s timeout, 2 retries, waits out the rate limit.
+  - Never fails the caller: it warns and exits 0.
+  - Requires https for anything that isn't this computer.
+- **Tests:** 5 report tests (token shown once and stored hashed, reporting, refusals, rotation and deletion, cleaning and staleness) plus a hosted test with a service token.
+- **Browser check:** two bots added on the team page and reported with the real script. The office showed "Terminal" and "Browsing", then a meeting.
+
 ## 2026-11-04 — Item 3 done: 2D / 3D office switch
 
 - **New package `packages/office-3d`:**

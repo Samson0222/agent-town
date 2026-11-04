@@ -53,14 +53,18 @@ export class AccessVerifier {
     this.fetchedAt = now;
   }
 
-  /** Returns the verified, lower-cased email. Throws AuthError otherwise. */
-  async verify(token: string | undefined): Promise<string> {
+  /**
+   * Returns the verified, lower-cased email. Throws AuthError otherwise.
+   * With `allowService`, a Cloudflare service-token login (no email) is accepted too and
+   * returned as "service:<client id>" (used only for outside agents' reports).
+   */
+  async verify(token: string | undefined, opts: { allowService?: boolean } = {}): Promise<string> {
     if (!token) throw new AuthError("Not signed in");
     const parts = token.split(".");
     if (parts.length !== 3) throw new AuthError("Malformed login token");
     const [h, p, sig] = parts as [string, string, string];
     let header: { alg?: string; kid?: string };
-    let payload: { iss?: string; aud?: string | string[]; exp?: number; nbf?: number; email?: string };
+    let payload: { iss?: string; aud?: string | string[]; exp?: number; nbf?: number; email?: string; common_name?: string };
     try {
       header = JSON.parse(Buffer.from(h, "base64url").toString("utf8"));
       payload = JSON.parse(Buffer.from(p, "base64url").toString("utf8"));
@@ -82,6 +86,7 @@ export class AccessVerifier {
     if (!aud.includes(this.cfg.audience)) throw new AuthError("Wrong audience");
     if (typeof payload.exp !== "number" || payload.exp < now - 30) throw new AuthError("Login expired");
     if (typeof payload.nbf === "number" && payload.nbf > now + 30) throw new AuthError("Login not valid yet");
+    if (opts.allowService && !payload.email && typeof payload.common_name === "string" && payload.common_name) return `service:${payload.common_name}`;
     if (!payload.email || !/^[^@\s]+@[^@\s]+$/.test(payload.email)) throw new AuthError("No email in login");
     return payload.email.toLowerCase();
   }

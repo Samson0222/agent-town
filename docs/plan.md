@@ -58,10 +58,10 @@ Your PC plus a Cloudflare Tunnel, Cloudflare Access login, and Agent Town roles 
 
 ## External agents report in (from the same post)
 Bots that run outside Agent Town (Codex, Grok bots, scripts) appear in the office.
-- ⬜ Per-bot report token (stored hashed, compared in constant time); `POST /api/report {status, summary}` on the tunnel port
-- ⬜ Clean input: status from a fixed list, summary ≤ 80 characters with control characters stripped, body ≤ 4 KB, 1 report per 2 s per bot, 120 per minute overall
-- ⬜ No report for 30 minutes → idle. A Node `agent-town-report` command for bots to call.
-- ⬜ Privacy rule shown when the token is created: report task types only — no accounts, messages, amounts or unpublished plans
+- ✅ Per-bot report token (only a SHA-256 hash is stored and looked up); `POST /api/report {status, summary, with}` on the local port, and on the tunnel port with a Cloudflare service token
+- ✅ Clean input: status from a fixed list, summary ≤ 80 characters with control characters stripped, body ≤ 4 KB, 1 report per 2 s per bot, 120 per minute overall
+- ✅ No report for 30 minutes → idle. A Node `agent-town-report` command for bots to call.
+- ✅ Privacy rule shown when the token is created: report task types only — no accounts, messages, amounts or unpublished plans
 - ⬜ Fits the M4 push-adapter idea (Mission-Control pattern)
 
 ## Milestone 3 — second runtime proof
