@@ -103,7 +103,7 @@ export default function WorkflowBuilder() {
     update({ ...wf, nodes: wf.nodes.map((n) => (n.id === node!.id ? ({ ...n, ...patch, config: { ...n.config, ...(patch.config ?? {}) } } as WorkflowNode) : n)) });
 
   return (
-    <div className="space-y-3">
+    <div className="flex flex-col gap-3 md:h-[calc(100vh-2rem)]">
       <div className="flex flex-wrap items-center gap-2">
         <Link href="/workflows" className="muted text-sm">
           ← Workflows
@@ -135,6 +135,7 @@ export default function WorkflowBuilder() {
       {msg && <p className={`text-sm ${msg.ok ? "text-green-600" : "text-red-600"}`}>{msg.text}</p>}
 
       {wf.simple && tab !== "json" ? (
+        <div className="min-h-0 flex-1 overflow-auto">
         <StepListMode
           wf={wf}
           team={team}
@@ -146,9 +147,10 @@ export default function WorkflowBuilder() {
           }}
           onAdvanced={() => setTab("graph")}
         />
+        </div>
       ) : (
-      <div className="grid gap-3 lg:grid-cols-[180px_1fr_340px]">
-        <aside className="panel space-y-1 p-3">
+      <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[190px_minmax(0,1fr)_380px] lg:grid-rows-[minmax(0,1fr)]">
+        <aside className="panel space-y-1 overflow-auto p-3">
           <div className="muted mb-1 text-xs">Add node</div>
           {(Object.keys(NODE_META) as WorkflowNode["type"][]).map((t) => (
             <button key={t} className="btn btn-sm w-full justify-start" onClick={() => addNode(t)}>
@@ -160,8 +162,8 @@ export default function WorkflowBuilder() {
           </p>
         </aside>
 
-        <div>
-          <div className="mb-2 flex gap-1">
+        <div className="flex min-h-0 flex-col">
+          <div className="mb-2 flex shrink-0 gap-1">
             <button className={`btn btn-sm ${tab === "graph" ? "btn-primary" : ""}`} onClick={() => setTab("graph")}>
               {wf.simple ? "Back to steps" : "Graph"}
             </button>
@@ -176,12 +178,14 @@ export default function WorkflowBuilder() {
             </button>
           </div>
           {tab === "graph" ? (
-            <FlowGraph workflow={wf} team={team} editable selected={sel} onSelect={setSel} onChange={update} height="68vh" />
+            <div className="min-h-[60vh] flex-1 lg:min-h-0">
+              <FlowGraph workflow={wf} team={team} editable selected={sel} onSelect={setSel} onChange={update} height="100%" />
+            </div>
           ) : (
-            <div className="panel p-2">
-              <textarea className="input h-[62vh] font-mono text-xs" value={jsonText} onChange={(e) => setJsonText(e.target.value)} spellCheck={false} />
+            <div className="panel flex min-h-0 flex-1 flex-col p-2">
+              <textarea className="input min-h-[50vh] flex-1 resize-none font-mono text-xs" value={jsonText} onChange={(e) => setJsonText(e.target.value)} spellCheck={false} />
               <button
-                className="btn mt-2"
+                className="btn mt-2 self-start"
                 onClick={() => {
                   try {
                     const parsed = parseWorkflow(JSON.parse(jsonText));
@@ -199,7 +203,7 @@ export default function WorkflowBuilder() {
           )}
         </div>
 
-        <aside className="panel space-y-3 overflow-auto p-3" style={{ maxHeight: "74vh" }}>
+        <aside className="panel min-h-0 space-y-3 overflow-auto p-3">
           {node ? (
             <NodeInspector node={node} team={team} tools={tools} setNode={setNode} wf={wf} update={update} />
           ) : edge ? (

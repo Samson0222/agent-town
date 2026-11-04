@@ -117,6 +117,9 @@ function Frame({ children }: { children: ReactNode }) {
         ) : path.startsWith("/office") ? (
           // The office is a full-bleed stage: no page padding, fills the whole viewport beside the sidebar.
           <main className="h-[calc(100vh-57px)] min-h-[480px] w-full flex-1 md:h-screen">{children}</main>
+        ) : /^\/workflows\/[^/]+/.test(path) ? (
+          // The workflow editor uses the whole viewport: no max width, tight padding.
+          <main className="w-full min-w-0 flex-1 p-3 md:px-4 md:py-4">{children}</main>
         ) : (
           <main className="mx-auto w-full max-w-[1500px] flex-1 px-4 py-6 md:px-8 md:py-8">{children}</main>
         )}
