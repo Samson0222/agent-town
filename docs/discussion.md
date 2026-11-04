@@ -2,6 +2,21 @@
 
 Newest first. Record decisions and open points from each session.
 
+## 2026-11-04 — Two office styles, Modern and Medieval, in both 2D and 3D
+
+The user wants to pick and switch freely between two looks:
+- **Modern:** the original 2D pixel office and the first 3D office (sharp, smooth, a modern town with a street and cars; kept in `packages/office-3d/src/town-modern.ts` and `buildRoomModern`).
+- **Medieval:** the pixel-art 3D island town, and a new 2D medieval office.
+
+How it works:
+- A **Modern / Medieval** switch sits beside the 2D / 3D switch on the office. The choice is remembered per browser (`agent-town.office-theme`, default Medieval).
+- 3D takes a `theme` option; Medieval renders small and scales up with outlines and dithering, Modern renders sharp as before.
+- 2D takes an art set (`/pixel-office/` or `/pixel-office/medieval/`). The loader decodes each set once and installs it every time the engine starts, so switching needs no reload.
+- The medieval 2D art is drawn in code: `node packages/pixel-office/scripts/build-medieval-assets.mjs` writes `apps/web/public/pixel-office/medieval/assets/` (floors, stone walls, 40 furniture sprites, a hearth and barrels, tunics for the characters, and a layout with a fireplace). Same ids and sizes as the modern set, so the engine and layout code did not change. Re-run it after changing the drawing code.
+- The modern set and the engine are untouched (upstream files unchanged).
+
+Open points: the medieval 2D desks and chairs are simple; the character tunics are a recolour of the original sprites (belts only), not new characters.
+
 ## 2026-11-04 — Phase 6: Workflows as saved plans, and wrap-up of the autonomous session
 
 - **Save:** a finished plan has **Save as workflow**. It becomes a step-list workflow in that workspace, named after the request, with the request as its default goal and "Saved from plan #n" as its description. It saves only once.

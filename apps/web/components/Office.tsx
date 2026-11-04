@@ -64,6 +64,7 @@ export function Office({
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const officeRef = useRef<OfficeEngine | null>(null);
+  const [theme, setTheme] = useOfficeTheme();
   const [mode, setMode] = useViewMode(defaultMode, viewScope);
   const tagsRef = useRef<HTMLDivElement>(null);
   const peopleRef = useRef(people);
@@ -117,15 +118,15 @@ export function Office({
       void import("@agent-town/office-3d").then(({ Office3D }) => {
         if (cancelled) return;
         if (!Office3D.supported()) return setMode("2d");
-        start(new Office3D(canvas, { onFrame }) as unknown as OfficeEngine);
+        start(new Office3D(canvas, { onFrame, theme }) as unknown as OfficeEngine);
       });
-    } else start(new PixelOffice(canvas, { onFrame }) as unknown as OfficeEngine);
+    } else start(new PixelOffice(canvas, { onFrame, base: theme === "medieval" ? "/pixel-office/medieval/" : "/pixel-office/" }) as unknown as OfficeEngine);
     return () => {
       cancelled = true;
       office?.destroy();
       officeRef.current = null;
     };
-  }, [mode, setMode]);
+  }, [mode, theme, setMode]);
 
   useEffect(() => {
     officeRef.current?.setAgents(toOffice(people));
@@ -140,7 +141,7 @@ export function Office({
   return (
     <div className="relative w-full overflow-hidden" style={{ height, background: "radial-gradient(ellipse at center, #2b2f4a 0%, #11131f 120%)" }}>
       <canvas
-        key={mode}
+        key={`${mode}-${theme}`}
         ref={canvasRef}
         className="block h-full w-full cursor-pointer"
         style={{ imageRendering: "pixelated" }}
@@ -158,6 +159,20 @@ export function Office({
             Simulated
           </span>
         )}
+        <div className="flex rounded-full p-0.5 text-[11px] font-semibold" style={{ background: "rgba(17,19,31,.72)" }} role="group" aria-label="Office style">
+          {(["modern", "medieval"] as const).map((t) => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => setTheme(t)}
+              aria-pressed={theme === t}
+              className="rounded-full px-2.5 py-1"
+              style={{ background: theme === t ? "#fff" : "transparent", color: theme === t ? "#11131f" : "#cbd5e1" }}
+            >
+              {t === "modern" ? "Modern" : "Medieval"}
+            </button>
+          ))}
+        </div>
         <div className="flex rounded-full p-0.5 text-[11px] font-semibold" style={{ background: "rgba(17,19,31,.72)" }} role="group" aria-label="Office view">
           {(["2d", "3d"] as const).map((m) => (
             <button
@@ -267,4 +282,25 @@ export function officePeople(state: RunState): OfficePerson[] {
     .map((id) => state.agents[id])
     .filter((a): a is NonNullable<typeof a> => !!a)
     .map((a) => ({ id: a.id, name: a.name, color: a.color, status: officeStatus(state, a.status), tool: a.currentTool, message: a.message, sprite: a.sprite, meetWith: partner.get(a.id) }));
+}
+
+type OfficeThemeName = "modern" | "medieval";
+const THEME_KEY = "agent-town.office-theme";
+
+/** Which art style the office uses (both 2D and 3D). Remembered in this browser. */
+function useOfficeTheme(): [OfficeThemeName, (t: OfficeThemeName) => void] {
+  const [theme, set] = useState<OfficeThemeName>("medieval");
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(THEME_KEY);
+      if (saved === "modern" || saved === "medieval") set(saved);
+    } catch {}
+  }, []);
+  const choose = useCallback((t: OfficeThemeName) => {
+    set(t);
+    try {
+      localStorage.setItem(THEME_KEY, t);
+    } catch {}
+  }, []);
+  return [theme, choose];
 }

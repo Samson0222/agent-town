@@ -2,6 +2,9 @@ import * as THREE from "three";
 import { Crowd, type Person, type Status } from "./crowd";
 import type { OfficePlan } from "./layout";
 import { Town, phaseAt, SKY, type Phase } from "./town";
+import { ModernTown, MODERN_SKY } from "./town-modern";
+
+export type OfficeTheme = "modern" | "medieval";
 import { crisp, pixTexture, texBox, type Kind } from "./pix";
 import { PixelPost } from "./post";
 
@@ -77,7 +80,8 @@ export class Office3D {
   private renderer: THREE.WebGLRenderer;
   private scene = new THREE.Scene();
   private camera = new THREE.OrthographicCamera(-10, 10, 10, -10, 8, 90);
-  private post: PixelPost;
+  private post?: PixelPost;
+  private theme: OfficeTheme;
   private crowd = new Crowd();
   private rigs = new Map<string, Rig>();
   private furniture = new THREE.Group();
@@ -93,7 +97,7 @@ export class Office3D {
   private drag?: { x: number; y: number; px: number; py: number; moved: boolean };
   private unbind: Array<() => void> = [];
   private agents: Office3DAgent[] = [];
-  private town?: Town;
+  private town?: Town | ModernTown;
   private phase: Phase = "day";
   private phaseCheck = 0;
   private hemi!: THREE.HemisphereLight;
@@ -112,15 +116,24 @@ export class Office3D {
 
   constructor(
     private canvas: HTMLCanvasElement,
-    private opts: { onFrame?: () => void } = {},
+    private opts: { onFrame?: () => void; theme?: OfficeTheme } = {},
   ) {
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
-    this.renderer.setPixelRatio(1); // drawn small, then scaled up crisp: that is the pixel-art look
+    this.theme = opts.theme ?? "medieval";
+    const modern = this.theme === "modern";
+    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: modern });
+    // Modern: drawn sharp at full resolution. Medieval: drawn small, then scaled up crisp (the pixel-art look).
+    this.renderer.setPixelRatio(modern ? Math.min(window.devicePixelRatio || 1, 2) : 1);
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-    this.post = new PixelPost(64, 64, 8, 90);
-    this.scene.background = skyTexture(...SKY.day);
+    if (modern) {
+      this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      this.renderer.toneMappingExposure = 1.05;
+      this.scene.background = new THREE.Color(MODERN_SKY.day);
+    } else {
+      this.post = new PixelPost(64, 64, 8, 90);
+      this.scene.background = skyTexture(...SKY.day);
+    }
 
     this.hemi = new THREE.HemisphereLight("#fff7ec", "#6d7a5a", 1.7);
     this.scene.add(this.hemi);
@@ -148,6 +161,22 @@ export class Office3D {
 
   private applyPhase(p: Phase) {
     this.phase = p;
+    if (this.theme === "modern") {
+      const look = {
+        day: { sky: MODERN_SKY.day, hemi: ["#fff7ec", "#6d7a5a", 1.7], sun: ["#fff4e0", 2.3, [-6, 14, 9]] },
+        dusk: { sky: MODERN_SKY.dusk, hemi: ["#ffd9b8", "#4a3f66", 1.25], sun: ["#ff9a5c", 1.7, [-12, 6, 7]] },
+        night: { sky: MODERN_SKY.night, hemi: ["#8fa6ff", "#1a1f3a", 1.0], sun: ["#9db4ff", 0.8, [-6, 14, 9]] },
+      }[p] as { sky: string; hemi: [string, string, number]; sun: [string, number, [number, number, number]] };
+      (this.scene.background as THREE.Color).set(look.sky);
+      this.hemi.color.set(look.hemi[0]);
+      this.hemi.groundColor.set(look.hemi[1]);
+      this.hemi.intensity = look.hemi[2];
+      this.sun.color.set(look.sun[0]);
+      this.sun.intensity = look.sun[1];
+      this.sun.position.set(...look.sun[2]);
+      this.town?.setPhase(p);
+      return;
+    }
     const look = {
       day: { sky: SKY.day, hemi: ["#fff1d6", "#7a8a4a", 1.5], sun: ["#ffe7c2", 2.4, [-6, 14, 9]], grade: [1.06, 1.0, 0.92] },
       dusk: { sky: SKY.dusk, hemi: ["#ffd9b8", "#4a3f66", 1.2], sun: ["#ff9a5c", 1.8, [-12, 6, 7]], grade: [1.1, 0.98, 0.9] },
@@ -155,7 +184,7 @@ export class Office3D {
     }[p] as { sky: [string, string]; hemi: [string, string, number]; sun: [string, number, [number, number, number]]; grade: [number, number, number] };
     (this.scene.background as THREE.Texture | null)?.dispose();
     this.scene.background = skyTexture(...look.sky);
-    this.post.setGrade(look.grade);
+    this.post!.setGrade(look.grade);
     this.hemi.color.set(look.hemi[0]);
     this.hemi.groundColor.set(look.hemi[1]);
     this.hemi.intensity = look.hemi[2];
@@ -230,7 +259,7 @@ export class Office3D {
       if (Array.isArray(mat)) mat.forEach((x) => x.dispose());
       else mat?.dispose();
     });
-    this.post.dispose();
+    this.post?.dispose();
     this.renderer.dispose();
   }
 
@@ -299,10 +328,12 @@ export class Office3D {
     const rect = this.canvas.getBoundingClientRect();
     const w = Math.max(1, rect.width);
     const h = Math.max(1, rect.height);
-    // Chunky pixels: render at a fraction of the screen size.
-    const P = Math.max(1.5, Math.min(w, h) / 340);
-    this.renderer.setSize(Math.ceil(w / P), Math.ceil(h / P), false);
-    this.post.setSize(Math.ceil(w / P), Math.ceil(h / P));
+    if (this.post) {
+      // Medieval: chunky pixels, rendered at a fraction of the screen size.
+      const P = Math.max(1.5, Math.min(w, h) / 340);
+      this.renderer.setSize(Math.ceil(w / P), Math.ceil(h / P), false);
+      this.post.setSize(Math.ceil(w / P), Math.ceil(h / P));
+    } else this.renderer.setSize(w, h, false);
     const plan = this.crowd.plan;
     const cx = (plan.minX + plan.maxX) / 2;
     const cz = (plan.minZ + plan.maxZ) / 2;
@@ -312,12 +343,12 @@ export class Office3D {
     this.camera.lookAt(cx, 0, cz);
     this.camera.updateMatrixWorld();
     // Fit the floor and walls: project the room's corners into camera space.
-    const M0 = 3.4;
-    const inv = this.camera.matrixWorldInverse;
+        const inv = this.camera.matrixWorldInverse;
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
     // Frame the whole island, from its underside up to the tallest roofs, like a diorama.
-    const ext = this.town?.extent ?? { x0: plan.minX - M0, x1: plan.maxX + M0, z0: plan.minZ - M0, z1: plan.maxZ + M0 };
-    for (const x of [ext.x0, ext.x1]) for (const z of [ext.z0, ext.z1]) for (const y of this.town ? [-9.5, 6.5] : [-3, WALL_H]) {
+    const island = this.town instanceof Town ? this.town.extent : undefined;
+    const ext = island ?? { x0: plan.minX - 2.6, x1: plan.maxX + 2.6, z0: plan.minZ - 2.6, z1: plan.maxZ + 2.6 };
+    for (const x of [ext.x0, ext.x1]) for (const z of [ext.z0, ext.z1]) for (const y of island ? [-9.5, 6.5] : [0, WALL_H]) {
       const p = new THREE.Vector3(x, y, z).applyMatrix4(inv);
       minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x); minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
     }
@@ -355,7 +386,8 @@ export class Office3D {
     }
     this.screens.forEach((m, i) => {
       const s = typingDesks.get(i);
-      m.emissive.set(s === "typing" ? "#6fc0ff" : s === "waiting" ? "#ffb547" : "#3a2a14");
+      const idle = this.theme === "modern" ? "#1a2236" : "#3a2a14";
+      m.emissive.set(s === "typing" ? "#6fc0ff" : s === "waiting" ? "#ffb547" : idle);
       m.emissiveIntensity = s ? 0.9 + Math.sin(now * 6 + i) * 0.1 : 0.4;
     });
     this.flames.forEach((m, i) => (m.emissiveIntensity = 1.5 + Math.sin(now * 9 + i * 2.3) * 0.35 + Math.sin(now * 17 + i) * 0.15));
@@ -368,7 +400,8 @@ export class Office3D {
       m.color.set(c);
       m.emissiveIntensity = s && s !== "idle" ? 1.4 + Math.sin(now * 4 + i) * 0.4 : 0.15;
     });
-    this.post.render(this.renderer, this.scene, this.camera);
+    if (this.post) this.post.render(this.renderer, this.scene, this.camera);
+    else this.renderer.render(this.scene, this.camera);
     this.opts.onFrame?.();
   };
 
@@ -376,6 +409,7 @@ export class Office3D {
   // Room
 
   private buildRoom(plan: OfficePlan) {
+    if (this.theme === "modern") return this.buildRoomModern(plan);
     this.builtFor = plan.desks.length;
     this.scene.remove(this.furniture);
     this.furniture.traverse((o) => (o as THREE.Mesh).geometry?.dispose());
@@ -516,6 +550,117 @@ export class Office3D {
     this.scene.add(g);
     this.resize();
   }
+
+  // -------------------------------------------------------------------------
+  // The modern office (the original 3D look)
+
+  private buildRoomModern(plan: OfficePlan) {
+    this.builtFor = plan.desks.length;
+    this.scene.remove(this.furniture);
+    this.furniture.traverse((o) => (o as THREE.Mesh).geometry?.dispose());
+    this.furniture = new THREE.Group();
+    this.screens = [];
+    this.deskLamps = [];
+    this.scene.remove(this.town?.group ?? new THREE.Group());
+    this.town = new ModernTown(plan);
+    this.scene.add(this.town.group);
+    this.town.setPhase(this.phase);
+    const g = this.furniture;
+    const W = plan.maxX - plan.minX;
+    const D = plan.maxZ - plan.minZ;
+
+    // The building's base, so the cut-away room reads as a building and not a floating tile.
+    g.add(box(W + 0.5, 0.45, D + 0.5, "#cdbfae", (plan.minX + plan.maxX) / 2 + 0.25, -0.28, (plan.minZ + plan.maxZ) / 2 + 0.25, { receive: true }));
+    g.add(box(W + 0.55, 0.06, D + 0.55, "#8e7f6e", (plan.minX + plan.maxX) / 2 + 0.25, -0.03, (plan.minZ + plan.maxZ) / 2 + 0.25));
+    // Floor: warm wood for the desks, blue carpet for the lounge, a lighter corridor.
+    g.add(box(W, 0.1, D, "#b98a5e", (plan.minX + plan.maxX) / 2, -0.05, (plan.minZ + plan.maxZ) / 2, { receive: true }));
+    g.add(box(1.5, 0.012, D, "#cfb08a", plan.corridorX, 0.006, (plan.minZ + plan.maxZ) / 2, { receive: true }));
+    const lx = plan.coffeeTable.x;
+    g.add(box(4.4, 0.014, 4.6, "#4b67b8", lx, 0.007, plan.coffeeTable.z + 0.6, { receive: true }));
+    // Floorboard lines
+    for (let x = plan.minX + 0.6; x < plan.corridorX - 0.8; x += 0.6) g.add(box(0.015, 0.011, D, "#a77b52", x, 0.005, (plan.minZ + plan.maxZ) / 2));
+
+    // Walls (north and west) with skirting, windows and a sign.
+    g.add(box(W, WALL_H, 0.16, "#ece4d8", (plan.minX + plan.maxX) / 2, WALL_H / 2, plan.minZ - 0.08, { receive: true }));
+    g.add(box(0.16, WALL_H, D, "#e4dbcd", plan.minX - 0.08, WALL_H / 2, (plan.minZ + plan.maxZ) / 2, { receive: true }));
+    g.add(box(W, 0.12, 0.04, "#8a6a4d", (plan.minX + plan.maxX) / 2, 0.06, plan.minZ + 0.02));
+    for (let x = plan.minX + 1.4; x < plan.corridorX - 0.5; x += 2.4) {
+      g.add(box(1.3, 0.9, 0.05, "#9fd3ff", x, 1.45, plan.minZ + 0.02, { emissive: "#6fb6ff", emissiveIntensity: 0.35 }));
+      g.add(box(1.4, 0.06, 0.08, "#ffffff", x, 0.97, plan.minZ + 0.05));
+    }
+    // Posters and a whiteboard
+    const posters = ["#ff6b9d", "#4f86f7", "#ffd23f", "#06d6a0"];
+    for (let i = 0; i < 4; i++) {
+      const px = plan.minX + 1.8 + i * 2.4 + (i > 1 ? 0.6 : 0);
+      if (px > plan.corridorX - 1) break;
+      g.add(box(0.5, 0.7, 0.03, "#ffffff", px, 1.6, plan.minZ + 0.03));
+      g.add(box(0.42, 0.28, 0.035, posters[i]!, px, 1.78, plan.minZ + 0.04));
+      g.add(box(0.3, 0.05, 0.035, "#c8ccd8", px, 1.5, plan.minZ + 0.04));
+      g.add(box(0.22, 0.05, 0.035, "#c8ccd8", px, 1.4, plan.minZ + 0.04));
+    }
+    g.add(box(0.05, 1.0, 1.7, "#f8fafc", plan.minX + 0.03, 1.5, plan.minZ + 3.2));
+    for (let i = 0; i < 4; i++) g.add(box(0.06, 0.04, 0.9 - i * 0.15, ["#e63946", "#2a9d8f", "#4f86f7", "#e9c46a"][i]!, plan.minX + 0.04, 1.8 - i * 0.2, plan.minZ + 3.0 + i * 0.08));
+    // Rug under the desks
+    g.add(box(DESK_SPAN, 0.014, D - 1.2, "#7d93c9", (plan.minX + plan.corridorX) / 2 - 0.4, 0.008, (plan.minZ + plan.maxZ) / 2 + 0.2, { receive: true }));
+    // Pendant lights over the lounge
+    for (const dx of [-1.2, 1.2]) {
+      g.add(box(0.02, 0.8, 0.02, "#2b2b2b", lx + dx, 2.0, plan.coffeeTable.z + 0.3));
+      const lampMat = new THREE.MeshStandardMaterial({ color: "#ffe9b8", emissive: "#ffd27a", emissiveIntensity: 0.9 });
+      const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.2, 12, 8), lampMat);
+      bulb.position.set(lx + dx, 1.55, plan.coffeeTable.z + 0.3);
+      g.add(bulb);
+    }
+    g.add(signNeon("AGENT TOWN", lx, 1.55, plan.minZ + 0.03));
+    // Bookshelf + clock on the west wall
+    g.add(box(0.35, 1.6, 1.4, "#7b5a3c", plan.minX + 0.18, 0.8, plan.maxZ - 1.6, { cast: true }));
+    for (let i = 0; i < 3; i++) for (let j = 0; j < 5; j++) g.add(box(0.2, 0.32, 0.18, ["#e76f51", "#2a9d8f", "#e9c46a", "#4f86f7", "#9b5de5"][(i + j) % 5]!, plan.minX + 0.32, 0.35 + i * 0.5, plan.maxZ - 2.1 + j * 0.24));
+
+    // Desks with monitors and chairs
+    plan.desks.forEach((d) => {
+      g.add(box(1.6, 0.08, 0.85, "#d9b88f", d.x, 0.75, d.z, { cast: true, receive: true }));
+      for (const [ox, oz] of [[-0.72, -0.35], [0.72, -0.35], [-0.72, 0.35], [0.72, 0.35]] as const) g.add(box(0.06, 0.75, 0.06, "#6b4f36", d.x + ox, 0.375, d.z + oz));
+      // Monitor on the south half of the desk, screen facing the person (north).
+      g.add(box(0.08, 0.22, 0.08, "#333", d.x, 0.9, d.z + 0.22));
+      g.add(box(0.7, 0.42, 0.05, "#222533", d.x, 1.18, d.z + 0.24, { cast: true }));
+      const screen = new THREE.MeshStandardMaterial({ color: "#0e1424", emissive: "#1a2236", emissiveIntensity: 0.4 });
+      const sm = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.34, 0.01), screen);
+      sm.position.set(d.x, 1.18, d.z + 0.21);
+      g.add(sm);
+      this.screens.push(screen);
+      g.add(box(0.5, 0.025, 0.16, "#e8e8e8", d.x, 0.8, d.z - 0.12));
+      g.add(box(0.1, 0.12, 0.1, "#f4f1ea", d.x + 0.55, 0.85, d.z - 0.05)); // mug
+      // Status lamp on the monitor: shows what this person is doing at a glance.
+      const lamp = new THREE.MeshStandardMaterial({ color: "#556070", emissive: "#556070", emissiveIntensity: 0.15 });
+      const lm = new THREE.Mesh(new THREE.SphereGeometry(0.06, 10, 8), lamp);
+      lm.position.set(d.x + 0.3, 1.46, d.z + 0.24);
+      g.add(lm);
+      this.deskLamps.push(lamp);
+      // chair (back on the north side)
+      const s = d.seat;
+      g.add(box(0.5, 0.08, 0.5, "#3d5a80", s.x, 0.44, s.z, { cast: true }));
+      g.add(box(0.5, 0.55, 0.08, "#3d5a80", s.x, 0.72, s.z - 0.24, { cast: true }));
+      g.add(box(0.06, 0.4, 0.06, "#2b2b2b", s.x, 0.2, s.z));
+    });
+
+    // Lounge: three sofas around a coffee table (the meeting spot)
+    const tz = plan.coffeeTable.z;
+    g.add(box(1.1, 0.35, 0.7, "#8b5e3c", lx, 0.32, tz, { cast: true, receive: true }));
+    g.add(box(0.18, 0.1, 0.18, "#f4f1ea", lx + 0.2, 0.54, tz));
+    const sofa = "#c0394b";
+    g.add(box(2.4, 0.42, 0.75, sofa, lx, 0.21, tz + 1.25, { cast: true }));
+    g.add(box(2.4, 0.5, 0.2, sofa, lx, 0.62, tz + 1.55, { cast: true }));
+    for (const side of [-1, 1]) {
+      g.add(box(0.75, 0.42, 1.5, sofa, lx + side * 1.65, 0.21, tz - 0.25, { cast: true }));
+      g.add(box(0.2, 0.5, 1.5, sofa, lx + side * 1.95, 0.62, tz - 0.25, { cast: true }));
+    }
+    // Plants, water cooler, kitchen counter
+    for (const [x, z] of [[plan.minX + 0.4, plan.maxZ - 0.5], [plan.maxX - 0.4, plan.minZ + 0.4], [plan.corridorX - 0.9, plan.minZ + 0.4], [plan.maxX - 0.4, plan.maxZ - 0.4]] as const) g.add(plant(x, z));
+    g.add(box(0.4, 1.0, 0.4, "#dfe7ef", plan.maxX - 0.4, 0.5, tz + 2.6, { cast: true }));
+    g.add(box(0.3, 0.35, 0.3, "#7cc0ff", plan.maxX - 0.4, 1.2, tz + 2.6, { emissive: "#3a8fd8", emissiveIntensity: 0.2 }));
+
+    this.scene.add(g);
+    this.resize();
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -584,6 +729,27 @@ function sign(text: string, x: number, y: number, z: number) {
   ctx.fillText(text, 48, 13);
   const tex = crisp(c);
   const m = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 0.55), new THREE.MeshStandardMaterial({ map: tex, roughness: 1 }));
+  m.position.set(x, y, z + 0.02);
+  return m;
+}
+
+function signNeon(text: string, x: number, y: number, z: number) {
+  const c = document.createElement("canvas");
+  c.width = 512;
+  c.height = 128;
+  const ctx = c.getContext("2d")!;
+  ctx.fillStyle = "#1b1630";
+  ctx.fillRect(0, 0, 512, 128);
+  ctx.font = "bold 64px system-ui, sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.shadowColor = "#ff7ab6";
+  ctx.shadowBlur = 18;
+  ctx.fillStyle = "#ffd1e6";
+  ctx.fillText(text, 256, 66);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 0.55), new THREE.MeshStandardMaterial({ map: tex, emissive: "#ffffff", emissiveMap: tex, emissiveIntensity: 0.9 }));
   m.position.set(x, y, z + 0.02);
   return m;
 }
