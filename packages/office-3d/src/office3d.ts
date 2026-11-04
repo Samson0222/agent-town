@@ -212,7 +212,7 @@ export class Office3D {
     const w = Math.max(1, rect.width);
     const h = Math.max(1, rect.height);
     // Chunky pixels: render at a fraction of the screen size.
-    const P = Math.max(2, Math.round(Math.min(w, h) / 230));
+    const P = Math.max(1.5, Math.min(w, h) / 340);
     this.renderer.setSize(Math.ceil(w / P), Math.ceil(h / P), false);
     const plan = this.crowd.plan;
     const cx = (plan.minX + plan.maxX) / 2;
