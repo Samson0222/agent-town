@@ -51,26 +51,27 @@ function Frame({ children }: { children: ReactNode }) {
         className={`sticky top-0 hidden h-screen shrink-0 flex-col border-r px-3 py-5 transition-[width] duration-200 md:flex ${collapsed ? "w-[68px]" : "w-60"}`}
         style={{ borderColor: "var(--line)", background: "var(--panel)" }}
       >
-        <Link href="/" className={`mb-4 flex items-center gap-2 ${collapsed ? "justify-center" : "px-2"}`} title="Agent Town">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl text-white" style={{ background: "linear-gradient(135deg, var(--accent), #ff7ab6)" }}>
-            <Building2 size={20} />
-          </span>
-          {!collapsed && (
-            <span>
-              <span className="block text-[15px] font-bold leading-tight">Agent Town</span>
-              <span className="muted block text-[11px]">your AI office</span>
+        <div className={`mb-5 flex ${collapsed ? "flex-col items-center gap-3" : "items-center justify-between"}`}>
+          <Link href="/" className={`flex items-center gap-2 ${collapsed ? "" : "px-2"}`} title="Agent Town">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl text-white" style={{ background: "linear-gradient(135deg, var(--accent), #ff7ab6)" }}>
+              <Building2 size={20} />
             </span>
-          )}
-        </Link>
-        <button
-          className={`nav-link mb-2 ${collapsed ? "justify-center" : ""}`}
-          onClick={toggle}
-          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-        >
-          {collapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
-          {!collapsed && "Collapse"}
-        </button>
+            {!collapsed && (
+              <span>
+                <span className="block text-[15px] font-bold leading-tight">Agent Town</span>
+                <span className="muted block text-[11px]">your AI office</span>
+              </span>
+            )}
+          </Link>
+          <button
+            className="btn btn-ghost btn-icon !h-8 !w-8"
+            onClick={toggle}
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            {collapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
+          </button>
+        </div>
         <nav className="flex flex-col gap-1">
           {nav.map(({ href, label, icon: Icon, match }) => (
             <Link key={href} href={href} className={`nav-link ${collapsed ? "justify-center" : ""}`} data-active={match(path)} title={collapsed ? label : undefined} aria-label={label}>

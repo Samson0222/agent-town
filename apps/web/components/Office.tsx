@@ -137,7 +137,7 @@ export function Office({
         key={mode}
         ref={canvasRef}
         className="block h-full w-full cursor-pointer"
-        style={{ imageRendering: mode === "2d" ? "pixelated" : undefined }}
+        style={{ imageRendering: "pixelated" }}
         onClick={(e) => {
           const id = officeRef.current?.agentAt(e.clientX, e.clientY);
           if (id) onAgentClick?.(id);

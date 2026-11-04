@@ -2,6 +2,16 @@
 
 Newest first. Record decisions and open points from each session.
 
+## 2026-11-04 — Medieval pixel-art style for the 3D town; icon-only sidebar toggle
+
+The user prefers a medieval pixel-art look.
+- **Pixel look:** the 3D scene is drawn at a fraction of the screen size and scaled up crisp (no anti-aliasing), with small nearest-neighbour textures made in code (`packages/office-3d/src/pix.ts`): stone, planks, cobbles, grass, roof tiles, plaster.
+- **Town:** timber-framed houses, round towers with flags, a keep with battlements, a windmill with turning sails, market stalls, a well, torches, trees, and horse carts on a dirt road.
+- **Hall:** stone walls with timber beams and shuttered windows, banners, a hearth, writing desks with parchment, candle and a glowing rune slate (shows typing / waiting), a tavern corner with a barrel table, benches and a chandelier. The status gem on each desk stays.
+- Day, dusk and night still follow the local clock.
+- **Not done:** the 2D pixel office is still the vendored modern-office art. Re-drawing it medieval needs new sprites; open point.
+- **Sidebar:** the collapse button is now an icon only, in the top-right corner of the sidebar.
+
 ## 2026-11-04 — The 3D office becomes a small town
 
 The user felt "office" was stronger than "town". The 3D view now sits inside a town (`packages/office-3d/src/town.ts`):
