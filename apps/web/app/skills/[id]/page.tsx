@@ -6,6 +6,7 @@ import { AlertTriangle, ArrowLeft, FileCode2, FileText, GitBranch, Globe, Loader
 import type { Skill } from "@agent-town/core";
 import { api, errorText } from "@/lib/api";
 import { Avatar, timeAgo } from "@/components/ui";
+import { useDialogs } from "@/components/Dialogs";
 
 interface SkillAgent {
   id: string;
@@ -24,6 +25,7 @@ interface SourceCheck {
 const SCRIPT = /\.(sh|bash|zsh|ps1|psm1|bat|cmd|py|js|mjs|cjs|ts|rb|pl|php)$/i;
 
 export default function SkillPage() {
+  const { confirm, prompt } = useDialogs();
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [skill, setSkill] = useState<Skill | null>(null);
@@ -114,7 +116,7 @@ export default function SkillPage() {
           <button
             className="btn btn-danger"
             onClick={async () => {
-              if (!confirm(`Delete "${skill.name}"? It will be removed from every agent.`)) return;
+              if (!(await confirm({ title: `Delete "${skill.name}"?`, message: "It will be removed from every agent.", confirmLabel: "Delete", danger: true }))) return;
               await api(`/api/skills/${encodeURIComponent(id)}`, { method: "DELETE" });
               router.push("/skills");
             }}
@@ -169,8 +171,8 @@ export default function SkillPage() {
             <button
               className="btn btn-sm btn-ghost"
               title="Add a file"
-              onClick={() => {
-                const path = prompt("File name (e.g. templates/report.md)");
+              onClick={async () => {
+                const path = await prompt({ title: "Add a file", label: "File name", placeholder: "templates/report.md", confirmLabel: "Add" });
                 if (!path || path === "SKILL.md" || draft.files.some((f) => f.path === path)) return;
                 setDraft({ ...draft, files: [...draft.files, { path, content: "" }] });
                 setOpenFile(path);

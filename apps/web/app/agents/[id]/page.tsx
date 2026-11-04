@@ -7,6 +7,7 @@ import type { AgentTemplate, Skill } from "@agent-town/core";
 import { api, errorText, formatUsd, type RuntimeInfo, type ToolInfo } from "@/lib/api";
 import { AgentForm } from "@/components/AgentForm";
 import { Avatar, RunStatusChip, timeAgo } from "@/components/ui";
+import { useDialogs } from "@/components/Dialogs";
 
 interface StepRow {
   run_id: string;
@@ -28,6 +29,7 @@ type Tab = "overview" | "settings";
 
 /** Agent page (layout follows Multica's agent detail: Overview with Now / Recent work, side card). */
 export default function AgentDetailPage() {
+  const { confirm } = useDialogs();
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [agent, setAgent] = useState<AgentTemplate | null>(null);
@@ -138,7 +140,7 @@ export default function AgentDetailPage() {
           <button
             className="btn btn-danger"
             onClick={async () => {
-              if (!confirm(`Delete ${agent.name}? They will leave every team.`)) return;
+              if (!(await confirm({ title: `Delete ${agent.name}?`, message: "They will leave every team.", confirmLabel: "Delete", danger: true }))) return;
               try {
                 await api(`/api/agents/${encodeURIComponent(id)}`, { method: "DELETE" });
                 router.push("/agents");

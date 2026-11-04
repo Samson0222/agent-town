@@ -1,8 +1,8 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Building2, History, Sparkles, Users, Workflow, Armchair, Bot, BookOpen } from "lucide-react";
-import type { ReactNode } from "react";
+import { Building2, History, Sparkles, Users, Workflow, Armchair, Bot, BookOpen, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { useEffect, useState, type ReactNode } from "react";
 
 const NAV = [
   { href: "/office", label: "Office", icon: Armchair, match: (p: string) => p.startsWith("/office") },
@@ -16,33 +16,60 @@ const NAV = [
 
 export function Shell({ children }: { children: ReactNode }) {
   const path = usePathname() ?? "/";
+  const [collapsed, setCollapsed] = useState(false);
+  useEffect(() => {
+    try {
+      setCollapsed(localStorage.getItem("agent-town:sidebar") === "collapsed");
+    } catch {}
+  }, []);
+  const toggle = () => {
+    setCollapsed((c) => {
+      try {
+        localStorage.setItem("agent-town:sidebar", c ? "open" : "collapsed");
+      } catch {}
+      return !c;
+    });
+  };
   return (
     <div className="flex min-h-screen">
       <aside
-        className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-r px-3 py-5 md:flex"
+        className={`sticky top-0 hidden h-screen shrink-0 flex-col border-r px-3 py-5 transition-[width] duration-200 md:flex ${collapsed ? "w-[68px]" : "w-60"}`}
         style={{ borderColor: "var(--line)", background: "var(--panel)" }}
       >
-        <Link href="/" className="mb-6 flex items-center gap-2 px-2">
+        <Link href="/" className={`mb-4 flex items-center gap-2 ${collapsed ? "justify-center" : "px-2"}`} title="Agent Town">
           <span className="flex h-9 w-9 items-center justify-center rounded-xl text-white" style={{ background: "linear-gradient(135deg, var(--accent), #ff7ab6)" }}>
             <Building2 size={20} />
           </span>
-          <span>
-            <span className="block text-[15px] font-bold leading-tight">Agent Town</span>
-            <span className="muted block text-[11px]">your AI office</span>
-          </span>
+          {!collapsed && (
+            <span>
+              <span className="block text-[15px] font-bold leading-tight">Agent Town</span>
+              <span className="muted block text-[11px]">your AI office</span>
+            </span>
+          )}
         </Link>
+        <button
+          className={`nav-link mb-2 ${collapsed ? "justify-center" : ""}`}
+          onClick={toggle}
+          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+        >
+          {collapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
+          {!collapsed && "Collapse"}
+        </button>
         <nav className="flex flex-col gap-1">
           {NAV.map(({ href, label, icon: Icon, match }) => (
-            <Link key={href} href={href} className="nav-link" data-active={match(path)}>
-              <Icon size={18} /> {label}
+            <Link key={href} href={href} className={`nav-link ${collapsed ? "justify-center" : ""}`} data-active={match(path)} title={collapsed ? label : undefined} aria-label={label}>
+              <Icon size={18} /> {!collapsed && label}
             </Link>
           ))}
         </nav>
-        <div className="muted mt-auto px-2 text-[11px] leading-relaxed">
-          Local prototype · v0.3
-          <br />
-          Runs only on this computer.
-        </div>
+        {!collapsed && (
+          <div className="muted mt-auto px-2 text-[11px] leading-relaxed">
+            Local prototype · v0.3
+            <br />
+            Runs only on this computer.
+          </div>
+        )}
       </aside>
 
       {/* mobile top bar */}

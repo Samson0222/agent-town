@@ -10,10 +10,12 @@ import { ActivityFeed, AgentDrawer, ApprovalBanner, Board, CostMeter, Outputs, S
 import { RunStatusChip } from "@/components/ui";
 import { api, errorText } from "@/lib/api";
 import { useRun } from "@/lib/useRun";
+import { useDialogs } from "@/components/Dialogs";
 
 type View = "office" | "graph" | "board";
 
 export default function RunPage() {
+  const { confirm } = useDialogs();
   const { id } = useParams<{ id: string }>();
   const { detail, events, visibleEvents, state, connected, error, replaySeq, setReplaySeq } = useRun(id);
   const [view, setView] = useState<View>("office");
@@ -45,7 +47,7 @@ export default function RunPage() {
   const agent = selected ? state.agents[selected] : undefined;
 
   const control = async (action: "pause" | "resume" | "stop") => {
-    if (action === "stop" && !confirm("Stop this run? Running steps are cancelled.")) return;
+    if (action === "stop" && !(await confirm({ title: "Stop this run?", message: "Running steps are cancelled.", confirmLabel: "Stop run", danger: true }))) return;
     setCtrlErr(null);
     try {
       await api(`/api/runs/${id}/${action}`, { json: {} });
