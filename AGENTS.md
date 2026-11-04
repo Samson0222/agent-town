@@ -3,7 +3,7 @@
 Agent Town is a local, visual multi-agent office. Read `docs/README.md` first, then `docs/progress-tracker.md` for where things stand. The product brief is `docs/brief-v0.3.md`.
 
 ## Safety (never break these)
-- **Localhost only.** The server and web app bind to `127.0.0.1`. Never expose the OpenCode server publicly; protect it with `OPENCODE_SERVER_PASSWORD`.
+- **Bind to localhost; the only public way in is authenticated.** Every server and the web app bind to `127.0.0.1`. The only public route is the Cloudflare Tunnel behind Cloudflare Access, and Agent Town checks the login and the role again on the tunnel-only API port (see `docs/hosting.md`). Never expose the OpenCode server or the local API port; protect OpenCode with `OPENCODE_SERVER_PASSWORD`. Switching the tunnel on is the user's step.
 - **No credentials in the repo.** Never commit `~/.local/share/opencode/auth.json`, `.env*` or any key or token. No key goes into workflow, team or agent JSON, events or logs.
 - **No real runs, no spend, nothing published without the user's explicit OK.** This covers real model runs, external sends, upstream PRs and package publishing.
 - **Approval-gated tools never go to runtime sessions.** Send and spend always need human approval; write needs it unless the agent auto-approves writes.

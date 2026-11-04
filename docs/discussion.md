@@ -2,6 +2,29 @@
 
 Newest first. Record decisions and open points from each session.
 
+## 2026-11-04 — Borrow ideas from @btcup99's 3D office post; public hosting for logged-in users; 2D/3D switch
+
+The user asked to borrow the post's ideas, to host Agent Town publicly for authenticated users only, and to add a switch between a 2D and a 3D office.
+
+**User choices:**
+1. **Hosting:** your PC plus a Cloudflare Tunnel. Agent Town, OpenCode and the logins stay on the PC, and no router ports are opened.
+2. **Users:** you as owner, plus invited people with roles (operator, viewer).
+3. **Login:** Cloudflare Access, with Agent Town checking the login again.
+
+**Decisions:**
+- **Two API ports.** The tunnel arrives from localhost too, so "localhost" can't mean "owner". The tunnel reaches only a port that requires a valid login.
+- **Roles are stored in Agent Town,** not Cloudflare. Send and spend approvals stay with the owner. Operators get a daily budget.
+- **`actor` on events** (an additive schema change) gives an audit trail.
+- **The localhost-only rule in AGENTS.md changes** to "bind to localhost; the only public way in is authenticated". The brief said localhost "for the prototype", so this follows the user's explicit decision.
+- **The 3D office is a second view** of the same state, behind an `OfficeView` interface. It uses Three.js (MIT) with our own low-poly models (CC0 assets only if any are used). Phones default to 2D.
+- **Order proposed:**
+  1. office upgrades (small)
+  2. hosted access
+  3. 2D/3D switch
+  4. external reporting
+
+  Waiting for the user to confirm the order.
+
 ## 2026-11-04 — Can we use vercel-labs/agent-desktop?
 
 Reviewed (reference-review.md §8). It's an Apache-2.0 computer-use tool (accessibility tree → refs → click/type), served over MCP. It would plug in as a **connector**, not a runtime, once the M2 MCP connector exists.

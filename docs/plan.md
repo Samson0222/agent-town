@@ -22,12 +22,47 @@ Follows [brief-v0.3.md](brief-v0.3.md) → *Build order*. ✅ done · 🟡 partl
 - ⏸ User reviews the mock demo and approves moving on to real runs
 
 ## Milestone 2 — OpenCode adapter + connectors (after M0 results + approval)
-- ⬜ `OpenCodeAdapter` against the pinned SDK: session per Agent Task node, SSE → RuntimeEvent mapping, cancel, cost from events, model list, tier detection
+- ✅ `OpenCodeAdapter` (2.2.0, `@opencode/client`): session per Agent Task node, event mapping, cancel, cost, model list. Tested on a fake server only; ⬜ first real run (needs the user's OK)
 - ⬜ Start / attach `opencode serve` on 127.0.0.1 with `OPENCODE_SERVER_PASSWORD`
 - ⬜ Generic MCP connector (stdio / HTTP), with tools mapped to categories from config
 - ⬜ OpenConnector (self-hosted) connector: `list_apps`, `search_actions`, `execute_action`; credentials stay in the gateway
 - ⬜ Demo: read a GitHub issue or Notion page via OpenConnector / MCP
 - ⬜ Run the Launch Brief end-to-end on OpenCode
+
+## Office upgrades (ideas borrowed from @btcup99's "3D AI office" post, 2026-11-04)
+Small and view-only; no security impact. See reference-review.md §9.
+- ⬜ Clearer statuses from the current tool: coding · terminal · browsing · reading · thinking · needs you (red pulse) · error · done
+- ⬜ Collaboration: when a review loop or handoff runs between two agents, both walk to the meeting table, then back to their desks
+- ⬜ Done moment: a short hop and sparkle when a step finishes
+- ⬜ "Simulated" label on the office and run when the practice runtime is used
+- ⬜ Phone layout: the side panel becomes a bottom drawer
+
+## 2D / 3D office switch
+The office is only a view of `reduceRunState(events)`, so a 3D view can sit beside the 2D one and use the same input.
+- ⬜ An `OfficeView` interface in the web app, the input the current pixel office already takes (agents, statuses, current tool, seats). The 2D pixel office becomes one implementation.
+- ⬜ A 3D implementation with Three.js (MIT): a block-style isometric office (desks, meeting table, lounge) with our own simple low-poly characters, coloured with each agent's look colour.
+  - no art copied from the post
+  - if we use outside models, only CC0 ones, recorded in reference-review.md
+- ⬜ Same behaviour rules in both views: always in the office, working = seated and typing, waiting = seated with "…", idle and done stroll
+- ⬜ A 2D / 3D toggle on the Office and run pages, remembered per browser. Phones default to 2D (lighter); 3D falls back to 2D if WebGL is unavailable.
+- ⬜ Browser check for both views, plus a test that both get the same state from the same events
+
+## Hosted access — public, logged-in users only (design: [hosting.md](hosting.md))
+Your PC plus a Cloudflare Tunnel, Cloudflare Access login, and Agent Town roles (owner / operator / viewer).
+- ⬜ `npm run start:hosted` (production build, same-origin API, separate tunnel-only API port)
+- ⬜ Cloudflare Access JWT check on the tunnel port, a `users` table, `GET /api/me`
+- ⬜ Role checks on every route and in the UI; send / spend approvals for the owner only; daily budget per operator
+- ⬜ People page (invite, role, remove, budget); `actor` on events ("Approved by …")
+- ⬜ Security tests (forged / expired / wrong-audience tokens, uninvited email, role matrix) and a Windows setup guide
+- ⬜ **Going live** (switching the tunnel on) is the user's step
+
+## External agents report in (from the same post)
+Bots that run outside Agent Town (Codex, Grok bots, scripts) appear in the office.
+- ⬜ Per-bot report token (stored hashed, compared in constant time); `POST /api/report {status, summary}` on the tunnel port
+- ⬜ Clean input: status from a fixed list, summary ≤ 80 characters with control characters stripped, body ≤ 4 KB, 1 report per 2 s per bot, 120 per minute overall
+- ⬜ No report for 30 minutes → idle. A Node `agent-town-report` command for bots to call.
+- ⬜ Privacy rule shown when the token is created: report task types only — no accounts, messages, amounts or unpublished plans
+- ⬜ Fits the M4 push-adapter idea (Mission-Control pattern)
 
 ## Milestone 3 — second runtime proof
 - ⬜ `ClaudeCodeAdapter` as a new file only (Agent SDK or headless CLI, to be decided)

@@ -8,6 +8,8 @@ Update this file whenever the current phase, active feature, or implementation s
 
 ## Current Goal
 
+- 2026-11-04: Planned (not built): office upgrades, 2D/3D switch, hosted access for logged-in users (docs/hosting.md), and external agents reporting in. Waiting for the user to confirm the order.
+
 - Waiting for the user's review. Next candidates: the first real OpenCode run (needs the user's go-ahead: it spends credit), the permission-reply contract addition, then M3 (Claude Code adapter).
 
 ## Completed
@@ -73,6 +75,9 @@ Update this file whenever the current phase, active feature, or implementation s
 - **Then (M2):** OpenCode adapter against the pinned SDK → MCP + OpenConnector connectors → real demo run.
 
 ## Open Questions
+
+- **Order of the new work:** (1) office upgrades → (2) hosted access → (3) 2D/3D switch → (4) external agents reporting? See plan.md.
+- **Hosting:** do you already have a domain, or should the guide include buying a cheap one and adding it to Cloudflare?
 
 - **First real OpenCode run:** OK to try one small run on a cheap or free model (e.g. a `-free` model) with a low cost cap? Steps are in milestone-0-opencode.md.
 - **Permission answers:** OK to add `respond(sessionId, requestId, approved, note)` to the adapter contract, so OpenCode permission questions can be answered in Agent Town's approval banner?

@@ -171,3 +171,27 @@ The OpenCode check (`npm run verify:opencode -- --serve`) can run in parallel, s
 6. **Office view:** `desktop_*` tool calls map to the existing typing animation; nothing new is needed.
 
 **Not now:** it controls the user's real computer, so it is gated behind the MCP connector, the approval design above and the user's OK.
+
+## 9. @btcup99 "3D AI office" post (added 2026-11-04, requested by the user)
+
+[x.com/btcup99/status/2116061235250884931](https://x.com/btcup99/status/2116061235250884931), 2026-10-30, a Chinese article. It contains **no code**: it's a write-up plus a prompt for your own AI. It was read through the fxtwitter mirror because x.com is blocked in the cloud container.
+
+**What it describes:**
+- a Three.js block-style office: director's room, meeting room, desks, lounge
+- 8 statuses (coding, terminal, browsing, thinking, needs you, error, idle, done)
+- collaborating bots meet in the meeting room; finishing a task gives a hop and confetti
+- after 30 minutes without a report a bot shows as idle
+- a labelled demo mode, and a bottom drawer on phones
+- bots push status with `office-report <bot> <status> "<summary>"` to a token-protected endpoint
+- privacy rules (vague task types only), an 80-character cap, a 4 KB body limit, rate limits
+- it is publicly hosted
+
+**Borrowed as ideas (no code exists to copy):**
+- the clearer statuses, collaboration meetings, done moment, simulated label and phone drawer
+- external agents reporting in, with its input hygiene and privacy rules
+- a 3D view, as a switchable alternative to the 2D office
+
+**Not borrowed:**
+- open public access: ours is login-only, see hosting.md
+- the BTC TV
+- the night "go home" animation, which is fake activity
