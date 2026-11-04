@@ -148,6 +148,10 @@ export class Town {
   private clouds: THREE.Object3D[] = [];
   private fall?: THREE.MeshStandardMaterial;
   private bounds = { x0: 0, x1: 0, z0: 0, z1: 0 };
+  /** The island's footprint, so the camera can frame all of it. */
+  get extent() {
+    return this.bounds;
+  }
   private phase: Phase = "day";
   /** Warm lights inside the office for evening and night. */
   readonly indoor: THREE.PointLight[] = [];
@@ -171,8 +175,9 @@ export class Town {
     g.add(tbx(iw, 0.4, iz1 - iz0, "grass", "#79b04c", icx, GROUND - 0.2, icz, 2.2, { receive: true }));
     g.add(tbx(iw + 0.3, 0.5, iz1 - iz0 + 0.3, "dirt", "#8b6a45", icx, GROUND - 0.55, icz, 1.6));
     for (let k = 1; k <= 7; k++) {
-      const shrink = k * 2.6 + (k % 2) * 0.8;
-      g.add(tbx(iw - shrink * 1.6, 1.0, iz1 - iz0 - shrink, "rock", k % 2 ? "#a58461" : "#8f7050", icx, GROUND - 1.2 - k * 0.95, icz, 1.8, { receive: true }));
+      // Each ledge steps in a little more than the one above, so the cliff face shows and ends in a blunt point.
+      const shrink = 0.9 * Math.pow(k, 1.5) + (k % 2) * 0.4;
+      g.add(tbx(iw - shrink * 1.4, 1.35, iz1 - iz0 - shrink, "rock", k % 2 ? "#a58461" : "#8f7050", icx + ((k % 3) - 1) * 0.4, GROUND - 1.1 - k * 1.2, icz + ((k % 2) - 0.5) * 0.4, 1.8, { cast: true, receive: true }));
     }
     // A few small rocks drifting below
     for (let i = 0; i < 5; i++) g.add(tbx(0.8 + r() * 0.9, 0.7 + r() * 0.5, 0.8 + r() * 0.8, "rock", "#8f7050", ix0 - 3 + r() * (iw + 6), -10.5 - r() * 3, iz0 + r() * (iz1 - iz0), 1.2, { cast: true }));

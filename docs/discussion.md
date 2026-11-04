@@ -16,6 +16,10 @@ The proposal is in docs/ux-proposal.md:
 
 Five questions are open for the user. Nothing is built yet.
 
+## 2026-11-04 — Whole-island view with zoom (3D)
+
+The 3D camera now frames the whole floating island, like the user's reference dioramas, instead of only the office and a strip around it. The mouse wheel zooms toward the cursor (up to 4x), dragging pans when zoomed in, and a double click resets. A drag is never treated as a click on a person. The cliff under the island is thicker and steps in more gently so its rock face shows.
+
 ## 2026-11-04 — Hand-painted pixel-art finish; the town floats on a cliff island
 
 From the user's reference pictures (timber houses, warm light, dark outlines, dithered shading, cliffs and waterfalls):

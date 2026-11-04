@@ -86,6 +86,12 @@ export class Office3D {
   private raf = 0;
   private last = 0;
   private observer: ResizeObserver;
+  /** Mouse-wheel zoom (1 = the whole island in view) and drag-to-pan, in camera units. */
+  private zoom = 1;
+  private pan = { x: 0, y: 0 };
+  private view = { mx: 0, my: 0, hw: 1, hh: 1 };
+  private drag?: { x: number; y: number; px: number; py: number; moved: boolean };
+  private unbind: Array<() => void> = [];
   private agents: Office3DAgent[] = [];
   private town?: Town;
   private phase: Phase = "day";
@@ -132,6 +138,7 @@ export class Office3D {
     this.scene.add(sun, sun.target);
     this.scene.add(this.furniture);
 
+    this.bindControls();
     this.observer = new ResizeObserver(() => this.resize());
     this.observer.observe(canvas);
     this.resize();
@@ -213,6 +220,7 @@ export class Office3D {
   }
 
   destroy() {
+    this.unbind.forEach((f) => f());
     cancelAnimationFrame(this.raf);
     this.observer.disconnect();
     this.scene.traverse((o) => {
@@ -227,6 +235,65 @@ export class Office3D {
   }
 
   // -------------------------------------------------------------------------
+
+  private applyView() {
+    const { mx, my, hw, hh } = this.view;
+    const z = this.zoom;
+    // keep the zoomed view inside the island's framing
+    this.pan.x = Math.max(-(hw - hw / z), Math.min(hw - hw / z, this.pan.x));
+    this.pan.y = Math.max(-(hh - hh / z), Math.min(hh - hh / z, this.pan.y));
+    const cx = mx + this.pan.x;
+    const cy = my + this.pan.y;
+    Object.assign(this.camera, { left: cx - hw / z, right: cx + hw / z, top: cy + hh / z, bottom: cy - hh / z });
+    this.camera.updateProjectionMatrix();
+  }
+
+  private bindControls() {
+    const c = this.canvas;
+    const on = <K extends keyof HTMLElementEventMap>(t: HTMLElement, type: K, fn: (e: HTMLElementEventMap[K]) => void, o?: AddEventListenerOptions) => {
+      t.addEventListener(type, fn as EventListener, o);
+      this.unbind.push(() => t.removeEventListener(type, fn as EventListener, o));
+    };
+    on(c, "wheel", (e) => {
+      e.preventDefault();
+      const rect = c.getBoundingClientRect();
+      const nx = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      const ny = -(((e.clientY - rect.top) / rect.height) * 2 - 1);
+      const { hw, hh } = this.view;
+      const z1 = this.zoom;
+      const z2 = Math.max(1, Math.min(4, z1 * Math.exp(-e.deltaY * 0.0015)));
+      // keep the point under the cursor where it is
+      this.pan.x += nx * (hw / z1 - hw / z2);
+      this.pan.y += ny * (hh / z1 - hh / z2);
+      this.zoom = z2;
+      this.applyView();
+    }, { passive: false });
+    on(c, "pointerdown", (e) => {
+      this.drag = { x: e.clientX, y: e.clientY, px: this.pan.x, py: this.pan.y, moved: false };
+    });
+    on(c, "pointermove", (e) => {
+      const d = this.drag;
+      if (!d || this.zoom <= 1) return;
+      const dx = e.clientX - d.x;
+      const dy = e.clientY - d.y;
+      if (!d.moved && Math.hypot(dx, dy) < 5) return;
+      d.moved = true;
+      const rect = c.getBoundingClientRect();
+      this.pan.x = d.px - (dx / rect.width) * 2 * (this.view.hw / this.zoom);
+      this.pan.y = d.py + (dy / rect.height) * 2 * (this.view.hh / this.zoom);
+      this.applyView();
+    });
+    on(c, "pointerup", () => setTimeout(() => (this.drag = undefined), 0));
+    // A drag is not a click on a person.
+    on(c, "click", (e) => {
+      if (this.drag?.moved) e.stopPropagation();
+    }, { capture: true });
+    on(c, "dblclick", () => {
+      this.zoom = 1;
+      this.pan = { x: 0, y: 0 };
+      this.applyView();
+    });
+  }
 
   private resize() {
     const rect = this.canvas.getBoundingClientRect();
@@ -245,10 +312,12 @@ export class Office3D {
     this.camera.lookAt(cx, 0, cz);
     this.camera.updateMatrixWorld();
     // Fit the floor and walls: project the room's corners into camera space.
+    const M0 = 3.4;
     const inv = this.camera.matrixWorldInverse;
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-    const M = 3.4; // a strip of town around the office stays in view
-    for (const x of [plan.minX - M, plan.maxX + 7.5]) for (const z of [plan.minZ - M, plan.maxZ + 7]) for (const y of [-3, WALL_H]) {
+    // Frame the whole island, from its underside up to the tallest roofs, like a diorama.
+    const ext = this.town?.extent ?? { x0: plan.minX - M0, x1: plan.maxX + M0, z0: plan.minZ - M0, z1: plan.maxZ + M0 };
+    for (const x of [ext.x0, ext.x1]) for (const z of [ext.z0, ext.z1]) for (const y of this.town ? [-9.5, 6.5] : [-3, WALL_H]) {
       const p = new THREE.Vector3(x, y, z).applyMatrix4(inv);
       minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x); minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
     }
@@ -257,8 +326,8 @@ export class Office3D {
     let halfH = (maxY - minY) / 2 + pad;
     if (halfW / halfH > w / h) halfH = halfW / (w / h);
     else halfW = halfH * (w / h);
-    const mx = (minX + maxX) / 2, my = (minY + maxY) / 2;
-    Object.assign(this.camera, { left: mx - halfW, right: mx + halfW, top: my + halfH, bottom: my - halfH });
+    this.view = { mx: (minX + maxX) / 2, my: (minY + maxY) / 2, hw: halfW, hh: halfH };
+    this.applyView();
     this.camera.updateProjectionMatrix();
   }
 
