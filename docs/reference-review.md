@@ -147,6 +147,12 @@ The OpenCode check (`npm run verify:opencode -- --serve`) can run in parallel, s
   3. **Create**, then a "what next" page
 - **Skills:** a reusable package (`SKILL.md` plus optional references, templates and scripts) kept in a **workspace skill library**. You create one manually or import a folder or URL, attach it to many agents, and enable or disable it per agent. Instructions are for one agent only; skills are reusable methods.
 - **Agent detail page:** tabs Overview (Now / Recent work), Work, Capabilities, Settings, plus a side card with runtime, model, skills and usage.
+- **Navigation (re-read at `16ce2df`, 2026-11-04):**
+  - a rail of spaces: Inbox · Work · Team · Chat · Autopilots · Settings
+  - global New issue and Search above the spaces
+  - each space opens a panel of grouped sections. The Team panel has Needs attention, Working now, Agents, Squads & members, and Resources (Skills, Runtimes, Usage).
+  - the Inbox holds only the moments a human is needed
+  - see docs/ux-proposal.md for how this could apply to us
 
 ## 8. agent-desktop (added 2026-11-04, requested by the user)
 

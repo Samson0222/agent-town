@@ -12,6 +12,7 @@ Where we record plans, progress, and discussion points.
 | [milestone-0-opencode.md](milestone-0-opencode.md) | How to run the OpenCode verification on your machine and what to send back. |
 | [hosting.md](hosting.md) | Design of public, login-only access (Cloudflare Tunnel + Access, roles). |
 | [hosting-setup.md](hosting-setup.md) | Step-by-step Windows setup for agents.devsam.my. |
+| [ux-proposal.md](ux-proposal.md) | Proposed navigation and grouping after Multica (for discussion). |
 | [reference-review.md](reference-review.md) | What we reuse from each reference project in the brief, licenses, and recommendations. |
 | [discussion.md](discussion.md) | Decision log and open discussion points, newest first. |
 

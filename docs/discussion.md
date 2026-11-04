@@ -2,6 +2,20 @@
 
 Newest first. Record decisions and open points from each session.
 
+## 2026-11-04 — UX review against Multica's grouping (proposal, waiting for the user)
+
+The user asked to refine our UX after Multica's grouping. Re-read Multica at `16ce2df` (design only).
+
+The proposal is in docs/ux-proposal.md:
+- sidebar groups: Inbox · Office · Work · Team · Resources · Settings
+- a **New run** button instead of the Start page
+- an **Inbox** that collects approvals across runs
+- live "Needs attention / Working now" sections
+- new **Runtimes** and **Usage** pages
+- People moves into Settings
+
+Five questions are open for the user. Nothing is built yet.
+
 ## 2026-11-04 — Hand-painted pixel-art finish; the town floats on a cliff island
 
 From the user's reference pictures (timber houses, warm light, dark outlines, dithered shading, cliffs and waterfalls):
